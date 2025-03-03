@@ -39,8 +39,8 @@ jobs:
       - name: Add problem matchers
         run: echo "::add-matcher::.github/rust.json"
 
-      - name: Work around newer native-tls version msrv
-        run: cargo update native-tls --precise 0.2.13
+      - name: Get latest compatible dependencies for MSRV
+        run: CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo update
 
       - run: cargo check --all-features --workspace --exclude book
 
