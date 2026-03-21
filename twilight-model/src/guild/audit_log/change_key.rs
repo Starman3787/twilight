@@ -370,6 +370,7 @@ mod tests {
         assert_eq!("$remove", AuditLogChangeKey::RoleRemoved.name());
         assert_eq!("rules_channel_id", AuditLogChangeKey::RulesChannelId.name());
         assert_eq!("splash_hash", AuditLogChangeKey::SplashHash.name());
+        assert_eq!("status", AuditLogChangeKey::Status.name());
         assert_eq!(
             "system_channel_id",
             AuditLogChangeKey::SystemChannelId.name()
@@ -721,6 +722,13 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "splash_hash",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::Status,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "status",
             }],
         );
         serde_test::assert_tokens(

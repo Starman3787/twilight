@@ -7,7 +7,7 @@ use crate::{
     },
     guild::{
         DefaultMessageNotificationLevel, ExplicitContentFilter, MfaLevel, NSFWLevel, Permissions,
-        VerificationLevel,
+        VerificationLevel, scheduled_event,
     },
     id::{
         Id,
@@ -594,10 +594,10 @@ pub enum AuditLogChange {
     Status {
         /// New status.
         #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
-        new: Option<u64>,
+        new: Option<scheduled_event::Status>,
         /// Previous state, if any.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
-        old: Option<u64>,
+        old: Option<scheduled_event::Status>,
     },
     /// ID of guild's system channel.
     SystemChannelId {
@@ -826,7 +826,11 @@ impl AuditLogChange {
 #[cfg(test)]
 mod tests {
     use super::{super::AuditLogChangeKey, AffectedRole, AuditLogChange, AuditLogChangeTypeValue};
-    use crate::{channel::ChannelType, guild::Permissions, id::Id};
+    use crate::{
+        channel::ChannelType,
+        guild::{Permissions, scheduled_event::Status as ScheduledEventStatus},
+        id::Id,
+    };
     use serde::{Deserialize, Serialize};
     use serde_test::Token;
     use static_assertions::{assert_fields, assert_impl_all};
@@ -880,6 +884,7 @@ mod tests {
     assert_fields!(AuditLogChange::RoleRemoved: new);
     assert_fields!(AuditLogChange::RulesChannelId: new, old);
     assert_fields!(AuditLogChange::SplashHash: new, old);
+    assert_fields!(AuditLogChange::Status: new, old);
     assert_fields!(AuditLogChange::SystemChannelId: new, old);
     assert_fields!(AuditLogChange::Temporary: new);
     assert_fields!(AuditLogChange::Topic: new);
@@ -1028,6 +1033,35 @@ mod tests {
                 Token::String("new_value"),
                 Token::Some,
                 Token::Str("discord"),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn status() {
+        let value = AuditLogChange::Status {
+            new: Some(ScheduledEventStatus::Active),
+            old: Some(ScheduledEventStatus::Scheduled),
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::Status), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("status"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::U8(u8::from(ScheduledEventStatus::Active)),
+                Token::String("old_value"),
+                Token::Some,
+                Token::U8(u8::from(ScheduledEventStatus::Scheduled)),
                 Token::StructEnd,
             ],
         );
