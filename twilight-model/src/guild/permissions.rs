@@ -219,6 +219,8 @@ mod tests {
         1 << 41
     );
     const_assert_eq!(Permissions::USE_SOUNDBOARD.bits(), 1 << 42);
+    const_assert_eq!(Permissions::CREATE_GUILD_EXPRESSIONS.bits(), 1 << 43);
+    const_assert_eq!(Permissions::CREATE_EVENTS.bits(), 1 << 44);
     const_assert_eq!(Permissions::USE_EXTERNAL_SOUNDS.bits(), 1 << 45);
     const_assert_eq!(Permissions::SEND_VOICE_MESSAGES.bits(), 1 << 46);
     const_assert_eq!(Permissions::SEND_POLLS.bits(), 1 << 49);
