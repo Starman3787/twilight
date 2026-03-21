@@ -14,11 +14,10 @@ use once_cell::sync::Lazy;
 use std::{future::Future, net::SocketAddr};
 use tokio::net::TcpListener;
 use twilight_model::{
-    application::interaction::{
-        Interaction, InteractionData, InteractionType, application_command::CommandData,
-    },
-    http::interaction::{InteractionResponse, InteractionResponseData, InteractionResponseType},
+    application::interaction::{Interaction, InteractionType, application_command::CommandData},
+    http::interaction::{InteractionResponse, InteractionResponseType},
 };
+use twilight_util::builder::interaction_response::ChannelMessageBuilder;
 
 /// Public key given from Discord.
 static PUB_KEY: Lazy<VerifyingKey> = Lazy::new(|| {
@@ -114,11 +113,7 @@ where
         // Respond to a slash command.
         InteractionType::ApplicationCommand => {
             // Run the handler to gain a response.
-            let data = match interaction.data {
-                Some(InteractionData::ApplicationCommand(data)) => Some(data),
-                _ => None,
-            }
-            .expect("`InteractionType::ApplicationCommand` has data");
+            let data = interaction.data.unwrap().try_into().unwrap();
             let response = f(data).await?;
 
             // Serialize the response and return it back to Discord.
@@ -148,24 +143,14 @@ async fn handler(data: Box<CommandData>) -> anyhow::Result<InteractionResponse> 
 
 /// Example of a handler that returns the formatted version of the interaction.
 async fn debug(data: Box<CommandData>) -> anyhow::Result<InteractionResponse> {
-    Ok(InteractionResponse {
-        kind: InteractionResponseType::ChannelMessageWithSource,
-        data: Some(InteractionResponseData {
-            content: Some(format!("```rust\n{data:?}\n```")),
-            ..Default::default()
-        }),
-    })
+    Ok(ChannelMessageBuilder::new()
+        .content(format!("```rust\n{data:?}\n```"))
+        .build())
 }
 
 /// Example of interaction that responds with a message saying "Vroom vroom".
 async fn vroom(_: Box<CommandData>) -> anyhow::Result<InteractionResponse> {
-    Ok(InteractionResponse {
-        kind: InteractionResponseType::ChannelMessageWithSource,
-        data: Some(InteractionResponseData {
-            content: Some("Vroom vroom".to_owned()),
-            ..Default::default()
-        }),
-    })
+    Ok(ChannelMessageBuilder::new().content("Vroom vroom").build())
 }
 
 #[tokio::main]

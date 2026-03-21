@@ -48,7 +48,7 @@ use twilight_model::{
     application::{
         command::{
             Command, CommandOption, CommandOptionChoice, CommandOptionChoiceValue,
-            CommandOptionType, CommandOptionValue, CommandType,
+            CommandOptionType, CommandType,
         },
         interaction::InteractionContextType,
     },
@@ -89,7 +89,6 @@ impl CommandBuilder {
     }
 
     /// Consume the builder, returning a [`Command`].
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "must be built into a command"]
     pub fn build(self) -> Command {
         self.0
@@ -245,7 +244,6 @@ impl AttachmentBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -329,7 +327,6 @@ impl BooleanBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -413,7 +410,6 @@ impl ChannelBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -505,7 +501,6 @@ impl IntegerBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -570,7 +565,7 @@ impl IntegerBuilder {
                 .map(|(name, value, ..)| CommandOptionChoice {
                     name: name.into(),
                     name_localizations: None,
-                    value: CommandOptionChoiceValue::Integer(value),
+                    value: value.into(),
                 })
                 .collect(),
         );
@@ -598,8 +593,8 @@ impl IntegerBuilder {
     /// Set the maximum allowed value.
     ///
     /// Defaults to no limit.
-    pub const fn max_value(mut self, value: i64) -> Self {
-        self.0.max_value = Some(CommandOptionValue::Integer(value));
+    pub fn max_value(mut self, value: i64) -> Self {
+        self.0.max_value = Some(value.into());
 
         self
     }
@@ -607,8 +602,8 @@ impl IntegerBuilder {
     /// Set the minimum allowed value.
     ///
     /// Defaults to no limit.
-    pub const fn min_value(mut self, value: i64) -> Self {
-        self.0.min_value = Some(CommandOptionValue::Integer(value));
+    pub fn min_value(mut self, value: i64) -> Self {
+        self.0.min_value = Some(value.into());
 
         self
     }
@@ -674,7 +669,6 @@ impl MentionableBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -758,7 +752,6 @@ impl NumberBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -823,7 +816,7 @@ impl NumberBuilder {
                 .map(|(name, value, ..)| CommandOptionChoice {
                     name: name.into(),
                     name_localizations: None,
-                    value: CommandOptionChoiceValue::Number(value),
+                    value: value.into(),
                 })
                 .collect(),
         );
@@ -851,8 +844,8 @@ impl NumberBuilder {
     /// Set the maximum allowed value.
     ///
     /// Defaults to no limit.
-    pub const fn max_value(mut self, value: f64) -> Self {
-        self.0.max_value = Some(CommandOptionValue::Number(value));
+    pub fn max_value(mut self, value: f64) -> Self {
+        self.0.max_value = Some(value.into());
 
         self
     }
@@ -860,8 +853,8 @@ impl NumberBuilder {
     /// Set the minimum allowed value.
     ///
     /// Defaults to no limit.
-    pub const fn min_value(mut self, value: f64) -> Self {
-        self.0.min_value = Some(CommandOptionValue::Number(value));
+    pub fn min_value(mut self, value: f64) -> Self {
+        self.0.min_value = Some(value.into());
 
         self
     }
@@ -927,7 +920,6 @@ impl RoleBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -1011,7 +1003,6 @@ impl StringBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -1079,7 +1070,7 @@ impl StringBuilder {
                 .map(|(name, value, ..)| CommandOptionChoice {
                     name: name.into(),
                     name_localizations: None,
-                    value: CommandOptionChoiceValue::String(value.into()),
+                    value: CommandOptionChoiceValue::from(value.into()),
                 })
                 .collect(),
         );
@@ -1183,7 +1174,6 @@ impl SubCommandBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -1275,7 +1265,6 @@ impl SubCommandGroupBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0
@@ -1359,7 +1348,6 @@ impl UserBuilder {
     }
 
     /// Consume the builder, returning the built command option.
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "should be used in a command builder"]
     pub fn build(self) -> CommandOption {
         self.0

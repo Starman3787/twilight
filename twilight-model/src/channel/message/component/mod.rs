@@ -7,6 +7,8 @@
 
 mod action_row;
 mod button;
+mod checkbox;
+mod checkbox_group;
 mod container;
 mod file_display;
 mod file_upload;
@@ -24,6 +26,8 @@ mod unfurled_media;
 pub use self::{
     action_row::ActionRow,
     button::{Button, ButtonStyle},
+    checkbox::Checkbox,
+    checkbox_group::{CheckboxGroup, CheckboxGroupOption},
     container::Container,
     file_display::FileDisplay,
     file_upload::FileUpload,
@@ -146,28 +150,32 @@ pub enum Component {
     ActionRow(ActionRow),
     /// Clickable item that renders below messages.
     Button(Button),
-    /// Dropdown-style item that renders below messages.
-    SelectMenu(SelectMenu),
-    /// Pop-up item that renders on modals.
-    TextInput(TextInput),
-    /// Markdown text.
-    TextDisplay(TextDisplay),
-    /// Display images and other media.
-    MediaGallery(MediaGallery),
-    /// Component to add vertical padding between other components.
-    Separator(Separator),
-    /// Displays an attached file.
-    File(FileDisplay),
-    /// Container to display text alongside an accessory component.
-    Section(Section),
+    /// A selectable checkbox in a modal
+    Checkbox(Checkbox),
+    /// A group of selectable checkboxes in a modal
+    CheckboxGroup(CheckboxGroup),
     /// Container that visually groups a set of components.
     Container(Container),
-    /// Small image that can be used as an accessory.
-    Thumbnail(Thumbnail),
-    /// Wrapper for modal components providing a label and an optional description.
-    Label(Label),
+    /// Displays an attached file.
+    File(FileDisplay),
     /// Allows uploading files in a modal.
     FileUpload(FileUpload),
+    /// Wrapper for modal components providing a label and an optional description.
+    Label(Label),
+    /// Display images and other media.
+    MediaGallery(MediaGallery),
+    /// Container to display text alongside an accessory component.
+    Section(Section),
+    /// Dropdown-style item that renders below messages.
+    SelectMenu(SelectMenu),
+    /// Component to add vertical padding between other components.
+    Separator(Separator),
+    /// Markdown text.
+    TextDisplay(TextDisplay),
+    /// Pop-up item that renders on modals.
+    TextInput(TextInput),
+    /// Small image that can be used as an accessory.
+    Thumbnail(Thumbnail),
     /// Variant value is unknown to the library.
     Unknown(u8),
 }
@@ -197,23 +205,25 @@ impl Component {
         match self {
             Component::ActionRow(_) => ComponentType::ActionRow,
             Component::Button(_) => ComponentType::Button,
+            Component::Checkbox(_) => ComponentType::Checkbox,
+            Component::CheckboxGroup(_) => ComponentType::CheckboxGroup,
+            Component::Container(_) => ComponentType::Container,
+            Component::File(_) => ComponentType::File,
+            Component::FileUpload(_) => ComponentType::FileUpload,
+            Component::Label(_) => ComponentType::Label,
+            Component::MediaGallery(_) => ComponentType::MediaGallery,
+            Component::Section(_) => ComponentType::Section,
             Component::SelectMenu(SelectMenu { kind, .. }) => match kind {
+                SelectMenuType::Channel => ComponentType::ChannelSelectMenu,
+                SelectMenuType::Mentionable => ComponentType::MentionableSelectMenu,
+                SelectMenuType::Role => ComponentType::RoleSelectMenu,
                 SelectMenuType::Text => ComponentType::TextSelectMenu,
                 SelectMenuType::User => ComponentType::UserSelectMenu,
-                SelectMenuType::Role => ComponentType::RoleSelectMenu,
-                SelectMenuType::Mentionable => ComponentType::MentionableSelectMenu,
-                SelectMenuType::Channel => ComponentType::ChannelSelectMenu,
             },
-            Component::TextInput(_) => ComponentType::TextInput,
-            Component::TextDisplay(_) => ComponentType::TextDisplay,
-            Component::MediaGallery(_) => ComponentType::MediaGallery,
             Component::Separator(_) => ComponentType::Separator,
-            Component::File(_) => ComponentType::File,
-            Component::Section(_) => ComponentType::Section,
-            Component::Container(_) => ComponentType::Container,
+            Component::TextDisplay(_) => ComponentType::TextDisplay,
+            Component::TextInput(_) => ComponentType::TextInput,
             Component::Thumbnail(_) => ComponentType::Thumbnail,
-            Component::Label(_) => ComponentType::Label,
-            Component::FileUpload(_) => ComponentType::FileUpload,
             Component::Unknown(unknown) => ComponentType::Unknown(*unknown),
         }
     }
@@ -222,19 +232,21 @@ impl Component {
     pub const fn component_count(&self) -> usize {
         match self {
             Component::ActionRow(action_row) => 1 + action_row.components.len(),
-            Component::Section(section) => 1 + section.components.len(),
-            Component::Container(container) => 1 + container.components.len(),
             Component::Button(_)
-            | Component::SelectMenu(_)
-            | Component::TextInput(_)
-            | Component::TextDisplay(_)
-            | Component::MediaGallery(_)
-            | Component::Separator(_)
+            | Component::Checkbox(_)
+            | Component::CheckboxGroup(_)
             | Component::File(_)
-            | Component::Thumbnail(_)
             | Component::FileUpload(_)
+            | Component::MediaGallery(_)
+            | Component::SelectMenu(_)
+            | Component::Separator(_)
+            | Component::TextDisplay(_)
+            | Component::TextInput(_)
+            | Component::Thumbnail(_)
             | Component::Unknown(_) => 1,
+            Component::Container(container) => 1 + container.components.len(),
             Component::Label(_) => 2,
+            Component::Section(section) => 1 + section.components.len(),
         }
     }
 }
@@ -251,6 +263,18 @@ impl From<Button> for Component {
     }
 }
 
+impl From<Checkbox> for Component {
+    fn from(checkbox: Checkbox) -> Self {
+        Self::Checkbox(checkbox)
+    }
+}
+
+impl From<CheckboxGroup> for Component {
+    fn from(checkbox_group: CheckboxGroup) -> Self {
+        Self::CheckboxGroup(checkbox_group)
+    }
+}
+
 impl From<Container> for Component {
     fn from(container: Container) -> Self {
         Self::Container(container)
@@ -260,6 +284,18 @@ impl From<Container> for Component {
 impl From<FileDisplay> for Component {
     fn from(file_display: FileDisplay) -> Self {
         Self::File(file_display)
+    }
+}
+
+impl From<FileUpload> for Component {
+    fn from(file_upload: FileUpload) -> Self {
+        Self::FileUpload(file_upload)
+    }
+}
+
+impl From<Label> for Component {
+    fn from(label: Label) -> Self {
+        Self::Label(label)
     }
 }
 
@@ -305,15 +341,168 @@ impl From<Thumbnail> for Component {
     }
 }
 
-impl From<Label> for Component {
-    fn from(label: Label) -> Self {
-        Self::Label(label)
+impl TryFrom<Component> for ActionRow {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::ActionRow(inner) => Ok(inner),
+            _ => Err(value),
+        }
     }
 }
 
-impl From<FileUpload> for Component {
-    fn from(file_upload: FileUpload) -> Self {
-        Self::FileUpload(file_upload)
+impl TryFrom<Component> for Button {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Button(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Checkbox {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Checkbox(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for CheckboxGroup {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::CheckboxGroup(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Container {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Container(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for FileDisplay {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::File(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for FileUpload {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FileUpload(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Label {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Label(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for MediaGallery {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::MediaGallery(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Section {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Section(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for SelectMenu {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::SelectMenu(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Separator {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Separator(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for TextDisplay {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::TextDisplay(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for TextInput {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::TextInput(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<Component> for Thumbnail {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Thumbnail(inner) => Ok(inner),
+            _ => Err(value),
+        }
     }
 }
 
@@ -326,37 +515,38 @@ impl<'de> Deserialize<'de> for Component {
 #[derive(Debug, Deserialize)]
 #[serde(field_identifier, rename_all = "snake_case")]
 enum Field {
+    AccentColor,
+    Accessory,
     ChannelTypes,
+    Component,
     Components,
+    Content,
     CustomId,
+    Default,
     DefaultValues,
+    Description,
     Disabled,
+    Divider,
     Emoji,
+    File,
+    Id,
+    Items,
     Label,
     MaxLength,
     MaxValues,
+    Media,
     MinLength,
     MinValues,
     Options,
     Placeholder,
     Required,
+    SkuId,
+    Spacing,
+    Spoiler,
     Style,
     Type,
     Url,
-    SkuId,
     Value,
-    Id,
-    Content,
-    Items,
-    Divider,
-    Spacing,
-    File,
-    Spoiler,
-    Accessory,
-    Media,
-    Description,
-    AccentColor,
-    Component,
 }
 
 struct ComponentVisitor;
@@ -373,7 +563,7 @@ impl<'de> Visitor<'de> for ComponentVisitor {
         // Required fields.
         let mut components: Option<Vec<Component>> = None;
         let mut kind: Option<ComponentType> = None;
-        let mut options: Option<Vec<SelectMenuOption>> = None;
+        let mut options: Option<Value> = None;
         let mut style: Option<Value> = None;
 
         // Liminal fields.
@@ -394,6 +584,7 @@ impl<'de> Visitor<'de> for ComponentVisitor {
         let mut url: Option<Option<String>> = None;
         let mut sku_id: Option<Id<SkuMarker>> = None;
         let mut value: Option<Option<String>> = None;
+        let mut default: Option<bool> = None;
 
         let mut id: Option<i32> = None;
         let mut content: Option<String> = None;
@@ -440,6 +631,13 @@ impl<'de> Visitor<'de> for ComponentVisitor {
                     }
 
                     custom_id = Some(map.next_value()?);
+                }
+                Field::Default => {
+                    if default.is_some() {
+                        return Err(DeError::duplicate_field("default"));
+                    }
+
+                    default = Some(map.next_value()?)
                 }
                 Field::DefaultValues => {
                     if default_values.is_some() {
@@ -648,7 +846,7 @@ impl<'de> Visitor<'de> for ComponentVisitor {
             ComponentType::ActionRow => {
                 let components = components.ok_or_else(|| DeError::missing_field("components"))?;
 
-                Self::Value::ActionRow(ActionRow { id, components })
+                Self::Value::ActionRow(ActionRow { components, id })
             }
             // Required fields:
             // - style
@@ -701,9 +899,7 @@ impl<'de> Visitor<'de> for ComponentVisitor {
             | ComponentType::MentionableSelectMenu
             | ComponentType::ChannelSelectMenu) => {
                 // Verify the individual variants' required fields
-                if let ComponentType::TextSelectMenu = kind
-                    && options.is_none()
-                {
+                if kind == ComponentType::TextSelectMenu && options.is_none() {
                     return Err(DeError::missing_field("options"));
                 }
 
@@ -732,7 +928,10 @@ impl<'de> Visitor<'de> for ComponentVisitor {
                     },
                     max_values: max_values.unwrap_or_default(),
                     min_values: min_values.unwrap_or_default(),
-                    options,
+                    options: options
+                        .map(Value::deserialize_into)
+                        .transpose()
+                        .map_err(DeserializerError::into_error)?,
                     placeholder: placeholder.unwrap_or_default(),
                     id,
                     required: required.unwrap_or_default(),
@@ -777,7 +976,7 @@ impl<'de> Visitor<'de> for ComponentVisitor {
             ComponentType::TextDisplay => {
                 let content = content.ok_or_else(|| DeError::missing_field("content"))?;
 
-                Self::Value::TextDisplay(TextDisplay { id, content })
+                Self::Value::TextDisplay(TextDisplay { content, id })
             }
             ComponentType::MediaGallery => {
                 let items = items.ok_or_else(|| DeError::missing_field("items"))?;
@@ -785,14 +984,14 @@ impl<'de> Visitor<'de> for ComponentVisitor {
                 Self::Value::MediaGallery(MediaGallery { id, items })
             }
             ComponentType::Separator => Self::Value::Separator(Separator {
-                id,
                 divider,
+                id,
                 spacing,
             }),
             ComponentType::File => {
                 let file = file.ok_or_else(|| DeError::missing_field("file"))?;
 
-                Self::Value::File(FileDisplay { id, file, spoiler })
+                Self::Value::File(FileDisplay { file, id, spoiler })
             }
             ComponentType::Unknown(unknown) => Self::Value::Unknown(unknown),
             ComponentType::Section => {
@@ -807,19 +1006,19 @@ impl<'de> Visitor<'de> for ComponentVisitor {
             ComponentType::Thumbnail => {
                 let media = media.ok_or_else(|| DeError::missing_field("media"))?;
                 Self::Value::Thumbnail(Thumbnail {
+                    description,
                     id,
                     media,
-                    description,
                     spoiler,
                 })
             }
             ComponentType::Container => {
                 let components = components.ok_or_else(|| DeError::missing_field("components"))?;
                 Self::Value::Container(Container {
-                    id,
                     accent_color,
-                    spoiler,
                     components,
+                    id,
+                    spoiler,
                 })
             }
             ComponentType::Label => {
@@ -847,6 +1046,39 @@ impl<'de> Visitor<'de> for ComponentVisitor {
                     max_values: max_values.unwrap_or_default(),
                     min_values: min_values.unwrap_or_default(),
                     required: required.unwrap_or_default(),
+                })
+            }
+            ComponentType::CheckboxGroup => {
+                let custom_id = custom_id
+                    .flatten()
+                    .ok_or_else(|| DeError::missing_field("custom_id"))?
+                    .deserialize_into()
+                    .map_err(DeserializerError::into_error)?;
+
+                let options = options
+                    .ok_or_else(|| DeError::missing_field("options"))?
+                    .deserialize_into()
+                    .map_err(DeserializerError::into_error)?;
+
+                Self::Value::CheckboxGroup(CheckboxGroup {
+                    id,
+                    custom_id,
+                    options,
+                    min_values: min_values.unwrap_or_default(),
+                    max_values: max_values.unwrap_or_default(),
+                    required: required.unwrap_or_default(),
+                })
+            }
+            ComponentType::Checkbox => {
+                let custom_id = custom_id
+                    .flatten()
+                    .ok_or_else(|| DeError::missing_field("custom_id"))?
+                    .deserialize_into()
+                    .map_err(DeserializerError::into_error)?;
+                Self::Value::Checkbox(Checkbox {
+                    custom_id,
+                    default,
+                    id,
                 })
             }
         })
@@ -1021,6 +1253,15 @@ impl Serialize for Component {
                     + usize::from(file_upload.max_values.is_some())
                     + usize::from(file_upload.required.is_some())
                     + usize::from(file_upload.id.is_some())
+            }
+            Component::CheckboxGroup(checkbox_group) => {
+                3 + usize::from(checkbox_group.id.is_some())
+                    + usize::from(checkbox_group.min_values.is_some())
+                    + usize::from(checkbox_group.max_values.is_some())
+                    + usize::from(checkbox_group.required.is_some())
+            }
+            Component::Checkbox(checkbox) => {
+                2 + usize::from(checkbox.id.is_some()) + usize::from(checkbox.default.is_some())
             }
             // We are dropping fields here but nothing we can do about that for
             // the time being.
@@ -1286,6 +1527,34 @@ impl Serialize for Component {
                     state.serialize_field("required", &file_upload.required)?;
                 }
             }
+            Component::CheckboxGroup(checkbox_group) => {
+                state.serialize_field("type", &ComponentType::CheckboxGroup)?;
+                if checkbox_group.id.is_some() {
+                    state.serialize_field("id", &checkbox_group.id)?;
+                }
+                state.serialize_field("custom_id", &Some(&checkbox_group.custom_id))?;
+                state.serialize_field("options", &checkbox_group.options)?;
+                if checkbox_group.min_values.is_some() {
+                    state.serialize_field("min_values", &checkbox_group.min_values)?;
+                }
+                if checkbox_group.max_values.is_some() {
+                    state.serialize_field("max_values", &checkbox_group.max_values)?;
+                }
+                if checkbox_group.required.is_some() {
+                    state.serialize_field("required", &checkbox_group.required)?;
+                }
+            }
+            Component::Checkbox(checkbox) => {
+                state.serialize_field("type", &ComponentType::Checkbox)?;
+                if checkbox.id.is_some() {
+                    state.serialize_field("id", &checkbox.id)?;
+                }
+                state.serialize_field("custom_id", &Some(&checkbox.custom_id))?;
+                if checkbox.default.is_some() {
+                    state.serialize_field("default", &checkbox.default)?;
+                }
+            }
+
             // We are not serializing all fields so this will fail to
             // deserialize. But it is all that can be done to avoid losing
             // incoming messages at this time.
@@ -1768,6 +2037,75 @@ mod tests {
                 Token::String("required"),
                 Token::Some,
                 Token::Bool(true),
+                Token::StructEnd,
+            ],
+        )
+    }
+
+    #[test]
+    fn checkbox_group() {
+        let value = Component::CheckboxGroup(CheckboxGroup {
+            id: None,
+            custom_id: "group".to_owned(),
+            options: vec![CheckboxGroupOption {
+                default: None,
+                description: None,
+                label: "Option A".to_owned(),
+                value: "a".to_owned(),
+            }],
+            min_values: None,
+            max_values: None,
+            required: None,
+        });
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "Component",
+                    len: 3, // type, custom_id, options
+                },
+                Token::Str("type"),
+                Token::U8(ComponentType::CheckboxGroup.into()),
+                Token::Str("custom_id"),
+                Token::Some,
+                Token::Str("group"),
+                Token::Str("options"),
+                Token::Seq { len: Some(1) },
+                Token::Struct {
+                    name: "CheckboxGroupOption",
+                    len: 2, // value, label
+                },
+                Token::Str("label"),
+                Token::Str("Option A"),
+                Token::Str("value"),
+                Token::Str("a"),
+                Token::StructEnd,
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
+    #[test]
+    fn checkbox() {
+        let value = Component::Checkbox(Checkbox {
+            custom_id: "test".to_owned(),
+            default: None,
+            id: None,
+        });
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "Component",
+                    len: 2,
+                },
+                Token::Str("type"),
+                Token::U8(ComponentType::Checkbox.into()),
+                Token::Str("custom_id"),
+                Token::Some,
+                Token::Str("test"),
                 Token::StructEnd,
             ],
         )
