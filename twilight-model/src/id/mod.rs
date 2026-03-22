@@ -417,7 +417,8 @@ mod tests {
             ApplicationMarker, AttachmentMarker, AuditLogEntryMarker, ChannelMarker, CommandMarker,
             CommandVersionMarker, EmojiMarker, EntitlementMarker, GenericMarker, GuildMarker,
             IntegrationMarker, InteractionMarker, MessageMarker, RoleMarker,
-            RoleSubscriptionSkuMarker, SkuMarker, StageMarker, UserMarker, WebhookMarker,
+            RoleSubscriptionSkuMarker, SkuMarker, SoundMarker, StageMarker, UserMarker,
+            WebhookMarker,
         },
     };
     use serde::{Deserialize, Serialize};
@@ -448,6 +449,7 @@ mod tests {
     assert_impl_all!(MessageMarker: Debug, Send, Sync);
     assert_impl_all!(RoleMarker: Debug, Send, Sync);
     assert_impl_all!(RoleSubscriptionSkuMarker: Debug, Send, Sync);
+    assert_impl_all!(SoundMarker: Debug, Send, Sync);
     assert_impl_all!(StageMarker: Debug, Send, Sync);
     assert_impl_all!(UserMarker: Debug, Send, Sync);
     assert_impl_all!(WebhookMarker: Debug, Send, Sync);

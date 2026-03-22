@@ -61,6 +61,10 @@ pub enum AuditLogChangeKey {
     DiscoverySplashHash,
     /// Whether emoticons are enabled.
     EnableEmoticons,
+    /// ID of the custom emoji for a soundboard sound.
+    EmojiId,
+    /// Unicode character of the standard emoji for a soundboard sound.
+    EmojiName,
     /// Whether an Auto Moderation rule is enabled.
     Enabled,
     /// Entity type of guild scheduled event was changed.
@@ -143,6 +147,8 @@ pub enum AuditLogChangeKey {
     RoleRemoved,
     /// ID of a guild's rules channel.
     RulesChannelId,
+    /// ID of a soundboard sound.
+    SoundId,
     /// Hash of a guild's splash.
     SplashHash,
     /// Status of guild scheduled event was changed.
@@ -171,6 +177,8 @@ pub enum AuditLogChangeKey {
     VanityUrlCode,
     /// Required verification level of new members in a guild.
     VerificationLevel,
+    /// Volume of a soundboard sound.
+    Volume,
     /// Channel ID of a widget.
     WidgetChannelId,
     /// Whether a widget is enabled.
@@ -221,6 +229,8 @@ impl AuditLogChangeKey {
             Self::Description => "description",
             Self::DiscoverySplashHash => "discovery_splash_hash",
             Self::EnableEmoticons => "enable_emoticons",
+            Self::EmojiId => "emoji_id",
+            Self::EmojiName => "emoji_name",
             Self::Enabled => "enabled",
             Self::EntityType => "entity_type",
             Self::EventType => "event_type",
@@ -261,6 +271,7 @@ impl AuditLogChangeKey {
             Self::RoleAdded => "$add",
             Self::RoleRemoved => "$remove",
             Self::RulesChannelId => "rules_channel_id",
+            Self::SoundId => "sound_id",
             Self::SplashHash => "splash_hash",
             Self::Status => "status",
             Self::SystemChannelId => "system_channel_id",
@@ -275,6 +286,7 @@ impl AuditLogChangeKey {
             Self::Uses => "uses",
             Self::VanityUrlCode => "vanity_url_code",
             Self::VerificationLevel => "verification_level",
+            Self::Volume => "volume",
             Self::WidgetChannelId => "widget_channel_id",
             Self::WidgetEnabled => "widget_enabled",
         }
@@ -345,6 +357,8 @@ mod tests {
             "enable_emoticons",
             AuditLogChangeKey::EnableEmoticons.name()
         );
+        assert_eq!("emoji_id", AuditLogChangeKey::EmojiId.name());
+        assert_eq!("emoji_name", AuditLogChangeKey::EmojiName.name());
         assert_eq!("enabled", AuditLogChangeKey::Enabled.name());
         assert_eq!("expire_behavior", AuditLogChangeKey::ExpireBehavior.name());
         assert_eq!(
@@ -398,6 +412,7 @@ mod tests {
         assert_eq!("$add", AuditLogChangeKey::RoleAdded.name());
         assert_eq!("$remove", AuditLogChangeKey::RoleRemoved.name());
         assert_eq!("rules_channel_id", AuditLogChangeKey::RulesChannelId.name());
+        assert_eq!("sound_id", AuditLogChangeKey::SoundId.name());
         assert_eq!("splash_hash", AuditLogChangeKey::SplashHash.name());
         assert_eq!("status", AuditLogChangeKey::Status.name());
         assert_eq!(
@@ -419,6 +434,7 @@ mod tests {
             "verification_level",
             AuditLogChangeKey::VerificationLevel.name()
         );
+        assert_eq!("volume", AuditLogChangeKey::Volume.name());
         assert_eq!(
             "widget_channel_id",
             AuditLogChangeKey::WidgetChannelId.name()
@@ -560,6 +576,20 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "enable_emoticons",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::EmojiId,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "emoji_id",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::EmojiName,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "emoji_name",
             }],
         );
         serde_test::assert_tokens(
@@ -787,6 +817,13 @@ mod tests {
             }],
         );
         serde_test::assert_tokens(
+            &AuditLogChangeKey::SoundId,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "sound_id",
+            }],
+        );
+        serde_test::assert_tokens(
             &AuditLogChangeKey::SplashHash,
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
@@ -868,6 +905,13 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "verification_level",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::Volume,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "volume",
             }],
         );
         serde_test::assert_tokens(

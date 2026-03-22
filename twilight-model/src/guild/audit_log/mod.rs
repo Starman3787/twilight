@@ -13,7 +13,7 @@ mod integration;
 mod optional_entry_info;
 
 pub use self::{
-    change::{AffectedRole, AuditLogChange, AuditLogChangeTypeValue},
+    change::{AffectedRole, AuditLogChange, AuditLogChangeTypeValue, SoundboardVolume},
     change_key::AuditLogChangeKey,
     entry::AuditLogEntry,
     event_type::AuditLogEventType,

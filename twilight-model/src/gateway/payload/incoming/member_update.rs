@@ -96,9 +96,11 @@ mod tests {
             &[
                 Token::Struct {
                     name: "MemberUpdate",
-                    len: 12,
+                    len: 13,
                 },
                 Token::Str("avatar"),
+                Token::None,
+                Token::Str("banner"),
                 Token::None,
                 Token::Str("communication_disabled_until"),
                 Token::Some,
