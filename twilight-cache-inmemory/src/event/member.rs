@@ -324,6 +324,8 @@ mod tests {
         // Test that a member update also updates the user.
         cache.update(&MemberUpdate {
             avatar: None,
+            avatar_decoration_data: None,
+            banner: None,
             communication_disabled_until: None,
             guild_id,
             flags: None,
