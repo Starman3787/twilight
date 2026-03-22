@@ -208,6 +208,12 @@ pub enum AuditLogEventType {
     ///
     /// [`GuildCommandPermissions`]: crate::application::command::permissions::GuildCommandPermissions
     ApplicationCommandPermissionUpdate,
+    /// Soundboard sound was created.
+    SoundboardSoundCreate,
+    /// Soundboard sound was updated.
+    SoundboardSoundUpdate,
+    /// Soundboard sound was deleted.
+    SoundboardSoundDelete,
     /// [`AutoModerationRule`] has been created.
     ///
     /// [`AutoModerationRule`]: crate::guild::auto_moderation::AutoModerationRule
@@ -226,10 +232,26 @@ pub enum AuditLogEventType {
     AutoModerationFlagToChannel,
     /// A member has been timed out by AutoMod.
     AutoModerationUserCommunicationDisabled,
+    /// A member has been quarantined by AutoMod.
+    AutoModerationQuarantineUser,
     /// Creator monetization request was created.
     CreatorMonetizationRequestCreated,
     /// Creator monetization terms were accepted.
     CreatorMonetizationTermsAccepted,
+    /// Guild Onboarding Question was created.
+    OnboardingPromptCreate,
+    /// Guild Onboarding Question was updated.
+    OnboardingPromptUpdate,
+    /// Guild Onboarding Question was deleted.
+    OnboardingPromptDelete,
+    /// Guild Onboarding was created.
+    OnboardingCreate,
+    /// Guild Onboarding was updated.
+    OnboardingUpdate,
+    /// Guild Server Guide was created.
+    HomeSettingsCreate,
+    /// Guild Server Guide was updated.
+    HomeSettingsUpdate,
     /// Variant value is unknown to the library.
     Unknown(u16),
 }
@@ -251,7 +273,7 @@ impl From<u16> for AuditLogEventType {
             24 => AuditLogEventType::MemberUpdate,
             25 => AuditLogEventType::MemberRoleUpdate,
             26 => AuditLogEventType::MemberMove,
-            17 => AuditLogEventType::MemberDisconnect,
+            27 => AuditLogEventType::MemberDisconnect,
             28 => AuditLogEventType::BotAdd,
             30 => AuditLogEventType::RoleCreate,
             31 => AuditLogEventType::RoleUpdate,
@@ -285,14 +307,25 @@ impl From<u16> for AuditLogEventType {
             111 => AuditLogEventType::ThreadUpdate,
             112 => AuditLogEventType::ThreadDelete,
             121 => AuditLogEventType::ApplicationCommandPermissionUpdate,
+            130 => AuditLogEventType::SoundboardSoundCreate,
+            131 => AuditLogEventType::SoundboardSoundUpdate,
+            132 => AuditLogEventType::SoundboardSoundDelete,
             140 => AuditLogEventType::AutoModerationRuleCreate,
             141 => AuditLogEventType::AutoModerationRuleUpdate,
             142 => AuditLogEventType::AutoModerationRuleDelete,
             143 => AuditLogEventType::AutoModerationBlockMessage,
             144 => AuditLogEventType::AutoModerationFlagToChannel,
             145 => AuditLogEventType::AutoModerationUserCommunicationDisabled,
+            146 => AuditLogEventType::AutoModerationQuarantineUser,
             150 => AuditLogEventType::CreatorMonetizationRequestCreated,
             151 => AuditLogEventType::CreatorMonetizationTermsAccepted,
+            163 => AuditLogEventType::OnboardingPromptCreate,
+            164 => AuditLogEventType::OnboardingPromptUpdate,
+            165 => AuditLogEventType::OnboardingPromptDelete,
+            166 => AuditLogEventType::OnboardingCreate,
+            167 => AuditLogEventType::OnboardingUpdate,
+            190 => AuditLogEventType::HomeSettingsCreate,
+            191 => AuditLogEventType::HomeSettingsUpdate,
             unknown => AuditLogEventType::Unknown(unknown),
         }
     }
@@ -349,14 +382,25 @@ impl From<AuditLogEventType> for u16 {
             AuditLogEventType::ThreadUpdate => 111,
             AuditLogEventType::ThreadDelete => 112,
             AuditLogEventType::ApplicationCommandPermissionUpdate => 121,
+            AuditLogEventType::SoundboardSoundCreate => 130,
+            AuditLogEventType::SoundboardSoundUpdate => 131,
+            AuditLogEventType::SoundboardSoundDelete => 132,
             AuditLogEventType::AutoModerationRuleCreate => 140,
             AuditLogEventType::AutoModerationRuleUpdate => 141,
             AuditLogEventType::AutoModerationRuleDelete => 142,
             AuditLogEventType::AutoModerationBlockMessage => 143,
             AuditLogEventType::AutoModerationFlagToChannel => 144,
             AuditLogEventType::AutoModerationUserCommunicationDisabled => 145,
+            AuditLogEventType::AutoModerationQuarantineUser => 146,
             AuditLogEventType::CreatorMonetizationRequestCreated => 150,
             AuditLogEventType::CreatorMonetizationTermsAccepted => 151,
+            AuditLogEventType::OnboardingPromptCreate => 163,
+            AuditLogEventType::OnboardingPromptUpdate => 164,
+            AuditLogEventType::OnboardingPromptDelete => 165,
+            AuditLogEventType::OnboardingCreate => 166,
+            AuditLogEventType::OnboardingUpdate => 167,
+            AuditLogEventType::HomeSettingsCreate => 190,
+            AuditLogEventType::HomeSettingsUpdate => 191,
             AuditLogEventType::Unknown(unknown) => unknown,
         }
     }
@@ -421,6 +465,7 @@ mod tests {
         assert_eq!(82, u16::from(AuditLogEventType::IntegrationDelete));
         assert_eq!(83, u16::from(AuditLogEventType::StageInstanceCreate));
         assert_eq!(84, u16::from(AuditLogEventType::StageInstanceUpdate));
+        assert_eq!(85, u16::from(AuditLogEventType::StageInstanceDelete));
         assert_eq!(90, u16::from(AuditLogEventType::StickerCreate));
         assert_eq!(91, u16::from(AuditLogEventType::StickerUpdate));
         assert_eq!(92, u16::from(AuditLogEventType::StickerDelete));
@@ -457,6 +502,20 @@ mod tests {
             151,
             u16::from(AuditLogEventType::CreatorMonetizationTermsAccepted)
         );
+        assert_eq!(130, u16::from(AuditLogEventType::SoundboardSoundCreate));
+        assert_eq!(131, u16::from(AuditLogEventType::SoundboardSoundUpdate));
+        assert_eq!(132, u16::from(AuditLogEventType::SoundboardSoundDelete));
+        assert_eq!(
+            146,
+            u16::from(AuditLogEventType::AutoModerationQuarantineUser)
+        );
+        assert_eq!(163, u16::from(AuditLogEventType::OnboardingPromptCreate));
+        assert_eq!(164, u16::from(AuditLogEventType::OnboardingPromptUpdate));
+        assert_eq!(165, u16::from(AuditLogEventType::OnboardingPromptDelete));
+        assert_eq!(166, u16::from(AuditLogEventType::OnboardingCreate));
+        assert_eq!(167, u16::from(AuditLogEventType::OnboardingUpdate));
+        assert_eq!(190, u16::from(AuditLogEventType::HomeSettingsCreate));
+        assert_eq!(191, u16::from(AuditLogEventType::HomeSettingsUpdate));
         assert_eq!(250, u16::from(AuditLogEventType::Unknown(250)));
     }
 }
