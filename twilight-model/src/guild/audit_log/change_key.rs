@@ -11,6 +11,8 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 #[non_exhaustive]
 #[serde(rename_all = "snake_case")]
 pub enum AuditLogChangeKey {
+    /// Actions of an Auto Moderation rule.
+    Actions,
     /// AFK voice channel for a guild.
     AfkChannelId,
     /// Timeout to cause a user to be moved to an AFK voice channel.
@@ -59,8 +61,16 @@ pub enum AuditLogChangeKey {
     DiscoverySplashHash,
     /// Whether emoticons are enabled.
     EnableEmoticons,
+    /// Whether an Auto Moderation rule is enabled.
+    Enabled,
     /// Entity type of guild scheduled event was changed.
     EntityType,
+    /// Event type of an Auto Moderation rule.
+    EventType,
+    /// Exempt channels of an Auto Moderation rule.
+    ExemptChannels,
+    /// Exempt roles of an Auto Moderation rule.
+    ExemptRoles,
     /// Behavior of the expiration of an integration.
     ExpireBehavior,
     /// Grace period of the expiration of an integration.
@@ -145,6 +155,10 @@ pub enum AuditLogChangeKey {
     Temporary,
     /// Topic of a textual channel.
     Topic,
+    /// Trigger metadata of an Auto Moderation rule.
+    TriggerMetadata,
+    /// Trigger type of an Auto Moderation rule.
+    TriggerType,
     /// Type of a created entity.
     Type,
     /// Role unicode emoji.
@@ -183,6 +197,7 @@ impl AuditLogChangeKey {
     /// [`BannerHash`]: Self::BannerHash
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Actions => "actions",
             Self::AfkChannelId => "afk_channel_id",
             Self::AfkTimeout => "afk_timeout",
             Self::Allow => "allow",
@@ -206,7 +221,11 @@ impl AuditLogChangeKey {
             Self::Description => "description",
             Self::DiscoverySplashHash => "discovery_splash_hash",
             Self::EnableEmoticons => "enable_emoticons",
+            Self::Enabled => "enabled",
             Self::EntityType => "entity_type",
+            Self::EventType => "event_type",
+            Self::ExemptChannels => "exempt_channels",
+            Self::ExemptRoles => "exempt_roles",
             Self::ExpireBehavior => "expire_behavior",
             Self::ExpireGracePeriod => "expire_grace_period",
             Self::ExplicitContentFilter => "explicit_content_filter",
@@ -248,6 +267,8 @@ impl AuditLogChangeKey {
             Self::Tags => "tags",
             Self::Temporary => "temporary",
             Self::Topic => "topic",
+            Self::TriggerMetadata => "trigger_metadata",
+            Self::TriggerType => "trigger_type",
             Self::Type => "type",
             Self::UnicodeEmoji => "unicode_emoji",
             Self::UserLimit => "user_limit",
@@ -293,6 +314,7 @@ mod tests {
 
     #[test]
     fn name() {
+        assert_eq!("actions", AuditLogChangeKey::Actions.name());
         assert_eq!("afk_channel_id", AuditLogChangeKey::AfkChannelId.name());
         assert_eq!("afk_timeout", AuditLogChangeKey::AfkTimeout.name());
         assert_eq!("allow", AuditLogChangeKey::Allow.name());
@@ -323,6 +345,7 @@ mod tests {
             "enable_emoticons",
             AuditLogChangeKey::EnableEmoticons.name()
         );
+        assert_eq!("enabled", AuditLogChangeKey::Enabled.name());
         assert_eq!("expire_behavior", AuditLogChangeKey::ExpireBehavior.name());
         assert_eq!(
             "expire_grace_period",
@@ -332,6 +355,12 @@ mod tests {
             "explicit_content_filter",
             AuditLogChangeKey::ExplicitContentFilter.name()
         );
+        assert_eq!("event_type", AuditLogChangeKey::EventType.name());
+        assert_eq!(
+            "exempt_channels",
+            AuditLogChangeKey::ExemptChannels.name()
+        );
+        assert_eq!("exempt_roles", AuditLogChangeKey::ExemptRoles.name());
         assert_eq!("hoist", AuditLogChangeKey::Hoist.name());
         assert_eq!("icon_hash", AuditLogChangeKey::IconHash.name());
         assert_eq!("id", AuditLogChangeKey::Id.name());
@@ -377,6 +406,11 @@ mod tests {
         );
         assert_eq!("temporary", AuditLogChangeKey::Temporary.name());
         assert_eq!("topic", AuditLogChangeKey::Topic.name());
+        assert_eq!(
+            "trigger_metadata",
+            AuditLogChangeKey::TriggerMetadata.name()
+        );
+        assert_eq!("trigger_type", AuditLogChangeKey::TriggerType.name());
         assert_eq!("type", AuditLogChangeKey::Type.name());
         assert_eq!("user_limit", AuditLogChangeKey::UserLimit.name());
         assert_eq!("uses", AuditLogChangeKey::Uses.name());
@@ -395,6 +429,13 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     #[test]
     fn serde() {
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::Actions,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "actions",
+            }],
+        );
         serde_test::assert_tokens(
             &AuditLogChangeKey::AfkChannelId,
             &[Token::UnitVariant {
@@ -519,6 +560,34 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "enable_emoticons",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::Enabled,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "enabled",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::EventType,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "event_type",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::ExemptChannels,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "exempt_channels",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::ExemptRoles,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "exempt_roles",
             }],
         );
         serde_test::assert_tokens(
@@ -750,6 +819,20 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "topic",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::TriggerMetadata,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "trigger_metadata",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::TriggerType,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "trigger_type",
             }],
         );
         serde_test::assert_tokens(

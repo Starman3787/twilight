@@ -7,7 +7,12 @@ use crate::{
     },
     guild::{
         DefaultMessageNotificationLevel, ExplicitContentFilter, MfaLevel, NSFWLevel, Permissions,
-        VerificationLevel, scheduled_event,
+        VerificationLevel,
+        auto_moderation::{
+            AutoModerationAction, AutoModerationEventType, AutoModerationTriggerMetadata,
+            AutoModerationTriggerType,
+        },
+        scheduled_event,
     },
     id::{
         Id,
@@ -52,6 +57,15 @@ pub enum AuditLogChangeTypeValue {
 #[non_exhaustive]
 #[serde(rename_all = "snake_case", tag = "key")]
 pub enum AuditLogChange {
+    /// Actions of an Auto Moderation rule were changed.
+    Actions {
+        /// New actions.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<AutoModerationAction>>,
+        /// Old actions.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<AutoModerationAction>>,
+    },
     /// AFK channel ID was changed.
     AfkChannelId {
         /// New ID of the AFK channel.
@@ -258,6 +272,15 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<bool>,
     },
+    /// Whether an Auto Moderation rule is enabled.
+    Enabled {
+        /// New enabled state.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<bool>,
+        /// Old enabled state.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<bool>,
+    },
     /// Entity type of guild scheduled event was changed.
     EntityType {
         /// New entity type.
@@ -266,6 +289,33 @@ pub enum AuditLogChange {
         /// Previous state, if any.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<u64>,
+    },
+    /// Event type of an Auto Moderation rule was changed.
+    EventType {
+        /// New event type.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationEventType>,
+        /// Old event type.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationEventType>,
+    },
+    /// Exempt channels of an Auto Moderation rule were changed.
+    ExemptChannels {
+        /// New exempt channels.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<Id<ChannelMarker>>>,
+        /// Old exempt channels.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<Id<ChannelMarker>>>,
+    },
+    /// Exempt roles of an Auto Moderation rule were changed.
+    ExemptRoles {
+        /// New exempt roles.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<Id<RoleMarker>>>,
+        /// Old exempt roles.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<Id<RoleMarker>>>,
     },
     /// Behavior of the expiration of an integration.
     ExpireBehavior {
@@ -635,6 +685,24 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<String>,
     },
+    /// Trigger metadata of an Auto Moderation rule was changed.
+    TriggerMetadata {
+        /// New trigger metadata.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationTriggerMetadata>,
+        /// Old trigger metadata.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationTriggerMetadata>,
+    },
+    /// Trigger type of an Auto Moderation rule was changed.
+    TriggerType {
+        /// New trigger type.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationTriggerType>,
+        /// Old trigger type.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationTriggerType>,
+    },
     /// Type of a created entity.
     ///
     /// The value of a type is dependent on the entity. For example, a channel's
@@ -739,6 +807,7 @@ impl AuditLogChange {
     /// [`Uses`]: Self::Uses
     pub const fn key(&self) -> Option<AuditLogChangeKey> {
         Some(match self {
+            Self::Actions { .. } => AuditLogChangeKey::Actions,
             Self::AfkChannelId { .. } => AuditLogChangeKey::AfkChannelId,
             Self::AfkTimeout { .. } => AuditLogChangeKey::AfkTimeout,
             Self::Allow { .. } => AuditLogChangeKey::Allow,
@@ -768,7 +837,11 @@ impl AuditLogChange {
             Self::Description { .. } => AuditLogChangeKey::Description,
             Self::DiscoverySplashHash { .. } => AuditLogChangeKey::DiscoverySplashHash,
             Self::EnableEmoticons { .. } => AuditLogChangeKey::EnableEmoticons,
+            Self::Enabled { .. } => AuditLogChangeKey::Enabled,
             Self::EntityType { .. } => AuditLogChangeKey::EntityType,
+            Self::EventType { .. } => AuditLogChangeKey::EventType,
+            Self::ExemptChannels { .. } => AuditLogChangeKey::ExemptChannels,
+            Self::ExemptRoles { .. } => AuditLogChangeKey::ExemptRoles,
             Self::ExpireBehavior { .. } => AuditLogChangeKey::ExpireBehavior,
             Self::ExpireGracePeriod { .. } => AuditLogChangeKey::ExpireGracePeriod,
             Self::ExplicitContentFilter { .. } => AuditLogChangeKey::ExplicitContentFilter,
@@ -810,6 +883,8 @@ impl AuditLogChange {
             Self::Tags { .. } => AuditLogChangeKey::Tags,
             Self::Temporary { .. } => AuditLogChangeKey::Temporary,
             Self::Topic { .. } => AuditLogChangeKey::Topic,
+            Self::TriggerMetadata { .. } => AuditLogChangeKey::TriggerMetadata,
+            Self::TriggerType { .. } => AuditLogChangeKey::TriggerType,
             Self::Type { .. } => AuditLogChangeKey::Type,
             Self::UnicodeEmoji { .. } => AuditLogChangeKey::UnicodeEmoji,
             Self::UserLimit { .. } => AuditLogChangeKey::UserLimit,
