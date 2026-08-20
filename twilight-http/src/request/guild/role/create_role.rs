@@ -1,15 +1,14 @@
-#[cfg(not(target_os = "wasi"))]
-use crate::response::{Response, ResponseFuture};
 use crate::{
     client::Client,
     error::Error,
     request::{self, AuditLogReason, Request, TryIntoRequest},
+    response::{Response, ResponseFuture},
     routing::Route,
 };
 use serde::Serialize;
 use std::future::IntoFuture;
 use twilight_model::{
-    guild::{Permissions, Role},
+    guild::{Permissions, Role, RoleColors},
     id::{Id, marker::GuildMarker},
 };
 use twilight_validate::request::{ValidationError, audit_reason as validate_audit_reason};
@@ -19,9 +18,11 @@ struct CreateRoleFields<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     color: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    colors: Option<RoleColors>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     hoist: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    icon: Option<&'a [u8]>,
+    icon: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     mentionable: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,6 +66,7 @@ impl<'a> CreateRole<'a> {
         Self {
             fields: CreateRoleFields {
                 color: None,
+                colors: None,
                 hoist: None,
                 icon: None,
                 mentionable: None,
@@ -91,6 +93,13 @@ impl<'a> CreateRole<'a> {
         self
     }
 
+    /// Set the role colours.
+    pub const fn colors(mut self, colors: RoleColors) -> Self {
+        self.fields.colors = Some(colors);
+
+        self
+    }
+
     /// If true, display the role in the members list.
     pub const fn hoist(mut self, hoist: bool) -> Self {
         self.fields.hoist = Some(hoist);
@@ -105,7 +114,7 @@ impl<'a> CreateRole<'a> {
     /// See [Discord Docs/Image Data].
     ///
     /// [Discord Docs/Image Data]: https://discord.com/developers/docs/reference#image-data
-    pub const fn icon(mut self, icon: &'a [u8]) -> Self {
+    pub const fn icon(mut self, icon: &'a str) -> Self {
         self.fields.icon = Some(icon);
 
         self
@@ -150,7 +159,6 @@ impl<'a> AuditLogReason<'a> for CreateRole<'a> {
     }
 }
 
-#[cfg(not(target_os = "wasi"))]
 impl IntoFuture for CreateRole<'_> {
     type Output = Result<Response<Role>, Error>;
 
