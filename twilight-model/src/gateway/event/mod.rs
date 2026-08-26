@@ -93,6 +93,14 @@ pub enum Event {
     /// A user was removed from a guild scheduled event.
     GuildScheduledEventUserRemove(GuildScheduledEventUserRemove),
     /// A guild's stickers were updated.
+    /// A guild soundboard sound was created.
+    GuildSoundboardSoundCreate(Box<GuildSoundboardSoundCreate>),
+    /// A guild soundboard sound was deleted.
+    GuildSoundboardSoundDelete(GuildSoundboardSoundDelete),
+    /// A guild soundboard sound was updated.
+    GuildSoundboardSoundUpdate(Box<GuildSoundboardSoundUpdate>),
+    /// A guild's soundboard sounds were updated.
+    GuildSoundboardSoundsUpdate(GuildSoundboardSoundsUpdate),
     GuildStickersUpdate(GuildStickersUpdate),
     /// A guild was updated.
     GuildUpdate(Box<GuildUpdate>),
@@ -209,6 +217,10 @@ impl Event {
             Event::GuildScheduledEventUpdate(e) => Some(e.0.guild_id),
             Event::GuildScheduledEventUserAdd(e) => Some(e.guild_id),
             Event::GuildScheduledEventUserRemove(e) => Some(e.guild_id),
+            Event::GuildSoundboardSoundCreate(e) => e.0.guild_id,
+            Event::GuildSoundboardSoundDelete(e) => Some(e.guild_id),
+            Event::GuildSoundboardSoundUpdate(e) => e.0.guild_id,
+            Event::GuildSoundboardSoundsUpdate(e) => Some(e.guild_id),
             Event::GuildStickersUpdate(e) => Some(e.guild_id),
             Event::GuildUpdate(e) => Some(e.0.id),
             Event::IntegrationCreate(e) => e.0.guild_id,
@@ -300,6 +312,10 @@ impl Event {
             Self::GuildScheduledEventUpdate(_) => EventType::GuildScheduledEventUpdate,
             Self::GuildScheduledEventUserAdd(_) => EventType::GuildScheduledEventUserAdd,
             Self::GuildScheduledEventUserRemove(_) => EventType::GuildScheduledEventUserRemove,
+            Self::GuildSoundboardSoundCreate(_) => EventType::GuildSoundboardSoundCreate,
+            Self::GuildSoundboardSoundDelete(_) => EventType::GuildSoundboardSoundDelete,
+            Self::GuildSoundboardSoundUpdate(_) => EventType::GuildSoundboardSoundUpdate,
+            Self::GuildSoundboardSoundsUpdate(_) => EventType::GuildSoundboardSoundsUpdate,
             Self::GuildStickersUpdate(_) => EventType::GuildStickersUpdate,
             Self::GuildUpdate(_) => EventType::GuildUpdate,
             Self::IntegrationCreate(_) => EventType::IntegrationCreate,
@@ -379,6 +395,10 @@ impl From<DispatchEvent> for Event {
             DispatchEvent::GuildScheduledEventUserRemove(v) => {
                 Self::GuildScheduledEventUserRemove(v)
             }
+            DispatchEvent::GuildSoundboardSoundCreate(v) => Self::GuildSoundboardSoundCreate(v),
+            DispatchEvent::GuildSoundboardSoundDelete(v) => Self::GuildSoundboardSoundDelete(v),
+            DispatchEvent::GuildSoundboardSoundUpdate(v) => Self::GuildSoundboardSoundUpdate(v),
+            DispatchEvent::GuildSoundboardSoundsUpdate(v) => Self::GuildSoundboardSoundsUpdate(v),
             DispatchEvent::GuildStickersUpdate(v) => Self::GuildStickersUpdate(v),
             DispatchEvent::GuildUpdate(v) => Self::GuildUpdate(v),
             DispatchEvent::IntegrationCreate(v) => Self::IntegrationCreate(v),

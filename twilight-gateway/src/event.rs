@@ -107,6 +107,14 @@ bitflags! {
         const GUILD_SCHEDULED_EVENT_USER_REMOVE = 1 << 68;
         /// A guild's stickers have been updated.
         const GUILD_STICKERS_UPDATE = 1 << 63;
+        /// A guild soundboard sound has been created.
+        const GUILD_SOUNDBOARD_SOUND_CREATE = 1 << 80;
+        /// A guild soundboard sound has been deleted.
+        const GUILD_SOUNDBOARD_SOUND_DELETE = 1 << 81;
+        /// A guild soundboard sound has been updated.
+        const GUILD_SOUNDBOARD_SOUND_UPDATE = 1 << 82;
+        /// A guild's soundboard sounds have been updated.
+        const GUILD_SOUNDBOARD_SOUNDS_UPDATE = 1 << 83;
         /// A guild has been updated.
         const GUILD_UPDATE = 1 << 14;
         /// A guild integration was created.
@@ -257,7 +265,11 @@ bitflags! {
         ///
         /// [`Intents::GUILD_EMOJIS_AND_STICKERS`]: crate::Intents::GUILD_EMOJIS_AND_STICKERS
         const GUILD_EMOJIS_AND_STICKERS = Self::GUILD_EMOJIS_UPDATE.bits()
-            | Self::GUILD_STICKERS_UPDATE.bits();
+            | Self::GUILD_STICKERS_UPDATE.bits()
+            | Self::GUILD_SOUNDBOARD_SOUND_CREATE.bits()
+            | Self::GUILD_SOUNDBOARD_SOUND_DELETE.bits()
+            | Self::GUILD_SOUNDBOARD_SOUND_UPDATE.bits()
+            | Self::GUILD_SOUNDBOARD_SOUNDS_UPDATE.bits();
 
         /// All [`EventTypeFlags`] in [`Intents::GUILD_INTEGRATIONS`].
         ///
@@ -368,6 +380,10 @@ impl From<EventType> for EventTypeFlags {
             EventType::GuildScheduledEventUpdate => Self::GUILD_SCHEDULED_EVENT_UPDATE,
             EventType::GuildScheduledEventUserAdd => Self::GUILD_SCHEDULED_EVENT_USER_ADD,
             EventType::GuildScheduledEventUserRemove => Self::GUILD_SCHEDULED_EVENT_USER_REMOVE,
+            EventType::GuildSoundboardSoundCreate => Self::GUILD_SOUNDBOARD_SOUND_CREATE,
+            EventType::GuildSoundboardSoundDelete => Self::GUILD_SOUNDBOARD_SOUND_DELETE,
+            EventType::GuildSoundboardSoundUpdate => Self::GUILD_SOUNDBOARD_SOUND_UPDATE,
+            EventType::GuildSoundboardSoundsUpdate => Self::GUILD_SOUNDBOARD_SOUNDS_UPDATE,
             EventType::GuildStickersUpdate => Self::GUILD_STICKERS_UPDATE,
             EventType::GuildUpdate => Self::GUILD_UPDATE,
             EventType::IntegrationCreate => Self::INTEGRATION_CREATE,

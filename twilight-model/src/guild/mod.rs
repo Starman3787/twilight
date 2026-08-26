@@ -40,6 +40,7 @@ mod role_colors;
 mod role_flags;
 mod role_position;
 mod role_tags;
+mod soundboard_sound;
 mod system_channel_flags;
 mod unavailable_guild;
 mod vanity_url;
@@ -57,9 +58,9 @@ pub use self::{
     member::Member, member_flags::MemberFlags, mfa_level::MfaLevel, partial_guild::PartialGuild,
     partial_member::PartialMember, premium_tier::PremiumTier, preview::GuildPreview,
     prune::GuildPrune, role::Role, role_colors::RoleColors, role_flags::RoleFlags,
-    role_position::RolePosition, role_tags::RoleTags, system_channel_flags::SystemChannelFlags,
-    unavailable_guild::UnavailableGuild, vanity_url::VanityUrl,
-    verification_level::VerificationLevel, widget::GuildWidget,
+    role_position::RolePosition, role_tags::RoleTags, soundboard_sound::SoundboardSound,
+    system_channel_flags::SystemChannelFlags, unavailable_guild::UnavailableGuild,
+    vanity_url::VanityUrl, verification_level::VerificationLevel, widget::GuildWidget,
 };
 
 use super::gateway::presence::PresenceListDeserializer;

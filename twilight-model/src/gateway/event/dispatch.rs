@@ -38,6 +38,10 @@ pub enum DispatchEvent {
     GuildScheduledEventUpdate(Box<GuildScheduledEventUpdate>),
     GuildScheduledEventUserAdd(GuildScheduledEventUserAdd),
     GuildScheduledEventUserRemove(GuildScheduledEventUserRemove),
+    GuildSoundboardSoundCreate(Box<GuildSoundboardSoundCreate>),
+    GuildSoundboardSoundDelete(GuildSoundboardSoundDelete),
+    GuildSoundboardSoundUpdate(Box<GuildSoundboardSoundUpdate>),
+    GuildSoundboardSoundsUpdate(GuildSoundboardSoundsUpdate),
     GuildStickersUpdate(GuildStickersUpdate),
     GuildUpdate(Box<GuildUpdate>),
     IntegrationCreate(Box<IntegrationCreate>),
@@ -112,6 +116,10 @@ impl DispatchEvent {
             Self::GuildScheduledEventUpdate(_) => EventType::GuildScheduledEventUpdate,
             Self::GuildScheduledEventUserAdd(_) => EventType::GuildScheduledEventUserAdd,
             Self::GuildScheduledEventUserRemove(_) => EventType::GuildScheduledEventUserRemove,
+            Self::GuildSoundboardSoundCreate(_) => EventType::GuildSoundboardSoundCreate,
+            Self::GuildSoundboardSoundDelete(_) => EventType::GuildSoundboardSoundDelete,
+            Self::GuildSoundboardSoundUpdate(_) => EventType::GuildSoundboardSoundUpdate,
+            Self::GuildSoundboardSoundsUpdate(_) => EventType::GuildSoundboardSoundsUpdate,
             Self::GuildStickersUpdate(_) => EventType::GuildStickersUpdate,
             Self::GuildUpdate(_) => EventType::GuildUpdate,
             Self::IntegrationCreate(_) => EventType::IntegrationCreate,
@@ -334,6 +342,18 @@ impl<'de> DeserializeSeed<'de> for DispatchEventWithTypeDeserializer<'_> {
             "GUILD_ROLE_UPDATE" => {
                 DispatchEvent::RoleUpdate(RoleUpdate::deserialize(deserializer)?)
             }
+            "GUILD_SOUNDBOARD_SOUND_CREATE" => DispatchEvent::GuildSoundboardSoundCreate(Box::new(
+                GuildSoundboardSoundCreate::deserialize(deserializer)?,
+            )),
+            "GUILD_SOUNDBOARD_SOUND_DELETE" => DispatchEvent::GuildSoundboardSoundDelete(
+                GuildSoundboardSoundDelete::deserialize(deserializer)?,
+            ),
+            "GUILD_SOUNDBOARD_SOUND_UPDATE" => DispatchEvent::GuildSoundboardSoundUpdate(Box::new(
+                GuildSoundboardSoundUpdate::deserialize(deserializer)?,
+            )),
+            "GUILD_SOUNDBOARD_SOUNDS_UPDATE" => DispatchEvent::GuildSoundboardSoundsUpdate(
+                GuildSoundboardSoundsUpdate::deserialize(deserializer)?,
+            ),
             "GUILD_STICKERS_UPDATE" => {
                 DispatchEvent::GuildStickersUpdate(GuildStickersUpdate::deserialize(deserializer)?)
             }
