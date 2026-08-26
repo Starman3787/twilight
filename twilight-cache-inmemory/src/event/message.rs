@@ -1,4 +1,4 @@
-use crate::{config::ResourceType, CacheableModels, InMemoryCache, UpdateCache};
+use crate::{CacheableModels, InMemoryCache, UpdateCache, config::ResourceType};
 use std::borrow::Cow;
 use twilight_model::gateway::payload::incoming::{
     MessageCreate, MessageDelete, MessageDeleteBulk, MessageUpdate,
@@ -22,22 +22,26 @@ impl<CacheModels: CacheableModels> UpdateCache<CacheModels> for MessageCreate {
             return;
         }
 
-        let mut channel_messages = cache.channel_messages.entry(self.0.channel_id).or_default();
+        let mut channel_messages = cache
+            .channel_messages
+            .entry(self.message.channel_id)
+            .or_default();
 
         // If the channel has more messages than the cache size the user has
         // requested then we pop a message ID out. Once we have the popped ID we
         // can remove it from the message cache. This prevents the cache from
         // filling up with old messages that aren't in any channel cache.
-        if channel_messages.len() >= cache.config.message_cache_size() {
-            if let Some(popped_id) = channel_messages.pop_back() {
-                cache.messages.remove(&popped_id);
-            }
+        if channel_messages.len() >= cache.config.message_cache_size()
+            && let Some(popped_id) = channel_messages.pop_back()
+        {
+            cache.messages.remove(&popped_id);
         }
 
-        channel_messages.push_front(self.0.id);
-        cache
-            .messages
-            .insert(self.0.id, CacheModels::Message::from(self.0.clone()));
+        channel_messages.push_front(self.message.id);
+        cache.messages.insert(
+            self.message.id,
+            CacheModels::Message::from(self.message.clone()),
+        );
     }
 }
 
@@ -112,10 +116,10 @@ impl<CacheModels: CacheableModels> UpdateCache<CacheModels> for MessageUpdate {
 
         // If this channel cache is full, we pop an message ID out of
         // the channel cache and also remove it from the message cache.
-        if channel_messages.len() >= cache.config.message_cache_size() {
-            if let Some(popped_id) = channel_messages.pop_back() {
-                cache.messages.remove(&popped_id);
-            }
+        if channel_messages.len() >= cache.config.message_cache_size()
+            && let Some(popped_id) = channel_messages.pop_back()
+        {
+            cache.messages.remove(&popped_id);
         }
 
         channel_messages.push_front(self.0.id);
@@ -131,10 +135,11 @@ mod tests {
         guild::{MemberFlags, PartialMember},
         id::Id,
         user::User,
-        util::{image_hash::ImageHashParseError, ImageHash, Timestamp},
+        util::{ImageHash, Timestamp, image_hash::ImageHashParseError},
     };
 
     #[allow(deprecated)]
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn message_create() -> Result<(), ImageHashParseError> {
         let joined_at = Some(Timestamp::from_secs(1_632_072_645).expect("non zero"));
@@ -166,6 +171,7 @@ mod tests {
                 mfa_enabled: None,
                 name: "test".to_owned(),
                 premium_type: None,
+                primary_guild: None,
                 public_flags: None,
                 system: None,
                 verified: None,
@@ -184,6 +190,8 @@ mod tests {
             kind: MessageType::Regular,
             member: Some(PartialMember {
                 avatar: None,
+                avatar_decoration_data: None,
+                banner: None,
                 communication_disabled_until: None,
                 deaf: false,
                 flags,
@@ -213,9 +221,15 @@ mod tests {
             webhook_id: None,
         };
 
-        cache.update(&MessageCreate(msg.clone()));
+        cache.update(&MessageCreate {
+            channel_type: None,
+            message: msg.clone(),
+        });
         msg.id = Id::new(5);
-        cache.update(&MessageCreate(msg));
+        cache.update(&MessageCreate {
+            channel_type: None,
+            message: msg,
+        });
 
         {
             let entry = cache.user_guilds(Id::new(3)).unwrap();

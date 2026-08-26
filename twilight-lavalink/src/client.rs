@@ -2,7 +2,7 @@
 
 use crate::{
     model::VoiceUpdate,
-    node::{IncomingEvents, Node, NodeConfig, NodeError, Resume},
+    node::{IncomingEvents, Node, NodeConfig, NodeError},
     player::{Player, PlayerManager},
 };
 use dashmap::DashMap;
@@ -13,10 +13,10 @@ use std::{
     sync::Arc,
 };
 use twilight_model::{
-    gateway::{event::Event, payload::incoming::VoiceServerUpdate, ShardId},
+    gateway::{ShardId, event::Event, payload::incoming::VoiceServerUpdate},
     id::{
-        marker::{GuildMarker, UserMarker},
         Id,
+        marker::{ChannelMarker, GuildMarker, UserMarker},
     },
 };
 
@@ -75,6 +75,12 @@ pub enum ClientErrorType {
     SendingVoiceUpdate,
 }
 
+#[derive(Debug)]
+struct DiscordSession {
+    channel_id: Option<Id<ChannelMarker>>,
+    id: Box<str>,
+}
+
 /// The lavalink client that manages nodes, players, and processes events from
 /// Discord to tie it all together.
 ///
@@ -99,11 +105,10 @@ pub enum ClientErrorType {
 pub struct Lavalink {
     nodes: DashMap<SocketAddr, Arc<Node>>,
     players: PlayerManager,
-    resume: Option<Resume>,
     shard_count: u32,
     user_id: Id<UserMarker>,
     server_updates: DashMap<Id<GuildMarker>, VoiceServerUpdate>,
-    sessions: DashMap<Id<GuildMarker>, Box<str>>,
+    discord_sessions: DashMap<Id<GuildMarker>, DiscordSession>,
 }
 
 impl Lavalink {
@@ -113,39 +118,15 @@ impl Lavalink {
     /// runtime, and the client must be re-created. These parameters are
     /// automatically passed to new nodes created via [`add`].
     ///
-    /// See also [`new_with_resume`], which allows you to specify session resume
-    /// capability.
-    ///
     /// [`add`]: Self::add
-    /// [`new_with_resume`]: Self::new_with_resume
     pub fn new(user_id: Id<UserMarker>, shard_count: u32) -> Self {
-        Self::_new_with_resume(user_id, shard_count, None)
-    }
-
-    /// Like [`new`], but allows you to specify resume capability (if any).
-    ///
-    /// Provide `None` for the `resume` parameter to disable session resume
-    /// capability. See the [`Resume`] documentation for defaults.
-    ///
-    /// [`Resume`]: crate::node::Resume
-    /// [`new`]: Self::new
-    pub fn new_with_resume(
-        user_id: Id<UserMarker>,
-        shard_count: u32,
-        resume: impl Into<Option<Resume>>,
-    ) -> Self {
-        Self::_new_with_resume(user_id, shard_count, resume.into())
-    }
-
-    fn _new_with_resume(user_id: Id<UserMarker>, shard_count: u32, resume: Option<Resume>) -> Self {
         Self {
             nodes: DashMap::new(),
             players: PlayerManager::new(),
-            resume,
             shard_count,
             user_id,
             server_updates: DashMap::new(),
-            sessions: DashMap::new(),
+            discord_sessions: DashMap::new(),
         }
     }
 
@@ -199,11 +180,14 @@ impl Lavalink {
                     }
 
                     if e.channel_id.is_none() {
-                        self.sessions.remove(&guild_id);
+                        self.discord_sessions.remove(&guild_id);
                         self.server_updates.remove(&guild_id);
                     } else {
-                        self.sessions
-                            .insert(guild_id, e.session_id.clone().into_boxed_str());
+                        let session = DiscordSession {
+                            channel_id: e.channel_id,
+                            id: e.session_id.clone().into_boxed_str(),
+                        };
+                        self.discord_sessions.insert(guild_id, session);
                     }
                     guild_id
                 } else {
@@ -218,15 +202,18 @@ impl Lavalink {
 
         let update = {
             let server = self.server_updates.get(&guild_id);
-            let session = self.sessions.get(&guild_id);
+            let session = self.discord_sessions.get(&guild_id);
             match (server, session) {
                 (Some(server), Some(session)) => {
                     let server = server.value();
-                    let session = session.value();
+                    let DiscordSession {
+                        channel_id,
+                        id: session_id,
+                    } = session.value();
                     tracing::debug!(
-                        "got both halves for {guild_id}: {server:?}; Session ID: {session:?}",
+                        "got both halves for {guild_id}: {server:?}; Session ID: {session_id:?}; Channel ID: {channel_id:?}",
                     );
-                    VoiceUpdate::new(guild_id, session.as_ref(), server.clone())
+                    VoiceUpdate::new(guild_id, session_id.as_ref(), *channel_id, server.clone())
                 }
                 (Some(server), None) => {
                     tracing::debug!(
@@ -267,6 +254,37 @@ impl Lavalink {
     /// If a node already exists with the provided address, then it will be
     /// replaced.
     ///
+    /// Pass `None` for `session_id` to create a fresh session. Pass
+    /// `Some(id)` to attempt resuming an existing Lavalink session. Resume
+    /// success is indicated by the `resumed` field on the
+    /// [`Ready`] event received via the returned [`IncomingEvents`] stream.
+    ///
+    /// If a `session_id` is provided and the session cannot be resumed,
+    /// the connection will fail with a [`Connecting`] error. The caller
+    /// can then retry with `session_id` set to `None` for a fresh session.
+    ///
+    /// [`Ready`]: crate::model::incoming::Ready
+    /// [`Connecting`]: crate::node::NodeErrorType::Connecting
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use twilight_lavalink::Lavalink;
+    /// # use twilight_model::id::Id;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let lavalink = Lavalink::new(Id::new(1), 1);
+    /// # let address = "127.0.0.1:2333".parse()?;
+    /// # let auth = "youshallnotpass";
+    /// // Fresh session (no resume)
+    /// let (node, events) = lavalink.add(address, auth, None).await?;
+    ///
+    /// // Resume an existing session
+    /// let old_session_id = Some("existing-session-id".to_string());
+    /// let (node, events) = lavalink.add(address, auth, old_session_id).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
     /// # Errors
     ///
     /// See the errors section of [`Node::connect`].
@@ -274,12 +292,14 @@ impl Lavalink {
         &self,
         address: SocketAddr,
         authorization: impl Into<String>,
+        session_id: Option<String>,
     ) -> Result<(Arc<Node>, IncomingEvents), NodeError> {
         let config = NodeConfig {
             address,
             authorization: authorization.into(),
-            resume: self.resume.clone(),
             user_id: self.user_id,
+            enable_tls: cfg!(feature = "tls"),
+            session_id,
         };
 
         let (node, rx) = Node::connect(config, self.players.clone()).await?;
@@ -386,7 +406,7 @@ impl Lavalink {
 
         self.server_updates
             .retain(|k, _| (k.get() >> 22) % shard_count != u64::from(shard_id));
-        self.sessions
+        self.discord_sessions
             .retain(|k, _| (k.get() >> 22) % shard_count != u64::from(shard_id));
     }
 }

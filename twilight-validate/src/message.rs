@@ -3,8 +3,8 @@
 //! [`Message`]: twilight_model::channel::Message
 
 use crate::{
-    component::{ComponentValidationErrorType, COMPONENT_COUNT},
-    embed::{chars as embed_chars, EmbedValidationErrorType, EMBED_TOTAL_LENGTH},
+    component::{COMPONENT_COUNT, COMPONENT_V2_COUNT, ComponentValidationErrorType},
+    embed::{EMBED_TOTAL_LENGTH, EmbedValidationErrorType, chars as embed_chars},
     request::ValidationError,
 };
 use std::{
@@ -14,7 +14,7 @@ use std::{
 use twilight_model::{
     channel::message::{Component, Embed},
     http::attachment::Attachment,
-    id::{marker::StickerMarker, Id},
+    id::{Id, marker::StickerMarker},
 };
 
 /// Maximum length of an attachment's description.
@@ -100,10 +100,14 @@ impl Display for MessageValidationError {
 
                 f.write_str("`is invalid")
             }
-            MessageValidationErrorType::ComponentCount { count } => {
+            MessageValidationErrorType::ComponentCount { count, is_v2 } => {
                 Display::fmt(count, f)?;
                 f.write_str(" components were provided, but only ")?;
-                Display::fmt(&COMPONENT_COUNT, f)?;
+                if *is_v2 {
+                    Display::fmt(&COMPONENT_V2_COUNT, f)?;
+                } else {
+                    Display::fmt(&COMPONENT_COUNT, f)?;
+                }
 
                 f.write_str(" root components are allowed")
             }
@@ -124,10 +128,8 @@ impl Display for MessageValidationError {
 
                 Display::fmt(&STICKER_MAX, f)
             }
-            MessageValidationErrorType::TooManyEmbeds { .. } => {
-                f.write_str("message has too many embeds")
-            }
-            MessageValidationErrorType::WebhookUsername { .. } => {
+            MessageValidationErrorType::TooManyEmbeds => f.write_str("message has too many embeds"),
+            MessageValidationErrorType::WebhookUsername => {
                 if let Some(source) = self.source() {
                     Display::fmt(&source, f)
                 } else {
@@ -157,6 +159,8 @@ pub enum MessageValidationErrorType {
     ComponentCount {
         /// Number of components that were provided.
         count: usize,
+        /// If it was a components V2 check.
+        is_v2: bool,
     },
     /// An invalid message component was provided.
     ComponentInvalid {
@@ -243,7 +247,7 @@ pub fn attachment_filename(filename: impl AsRef<str>) -> Result<(), MessageValid
     if filename
         .as_ref()
         .chars()
-        .all(|c| (c.is_ascii_alphanumeric() || c == DOT || c == DASH || c == UNDERSCORE))
+        .all(|c| c.is_ascii_alphanumeric() || c == DOT || c == DASH || c == UNDERSCORE)
     {
         Ok(())
     } else {
@@ -267,28 +271,46 @@ pub fn attachment_filename(filename: impl AsRef<str>) -> Result<(), MessageValid
 /// be returned as a result of validating each provided component.
 ///
 /// [`component`]: crate::component::component
-pub fn components(components: &[Component]) -> Result<(), MessageValidationError> {
-    let count = components.len();
-
-    if count > COMPONENT_COUNT {
-        Err(MessageValidationError {
-            kind: MessageValidationErrorType::ComponentCount { count },
-            source: None,
-        })
-    } else {
-        for (idx, component) in components.iter().enumerate() {
-            crate::component::component(component).map_err(|source| {
-                let (kind, source) = source.into_parts();
-
-                MessageValidationError {
-                    kind: MessageValidationErrorType::ComponentInvalid { idx, kind },
-                    source,
-                }
-            })?;
+pub fn components(components: &[Component], is_v2: bool) -> Result<(), MessageValidationError> {
+    if is_v2 {
+        let count = components
+            .iter()
+            .map(Component::component_count)
+            .sum::<usize>();
+        if count > COMPONENT_V2_COUNT {
+            return Err(MessageValidationError {
+                kind: MessageValidationErrorType::ComponentCount { count, is_v2 },
+                source: None,
+            });
         }
+    } else {
+        let count = components.len();
 
-        Ok(())
+        if count > COMPONENT_COUNT {
+            return Err(MessageValidationError {
+                kind: MessageValidationErrorType::ComponentCount { count, is_v2 },
+                source: None,
+            });
+        }
     }
+
+    let function = if is_v2 {
+        crate::component::component_v2
+    } else {
+        crate::component::component_v1
+    };
+    for (idx, component) in components.iter().enumerate() {
+        function(component).map_err(|source| {
+            let (kind, source) = source.into_parts();
+
+            MessageValidationError {
+                kind: MessageValidationErrorType::ComponentInvalid { idx, kind },
+                source,
+            }
+        })?;
+    }
+
+    Ok(())
 }
 
 /// Ensure a message's content is correct.

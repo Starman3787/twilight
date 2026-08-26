@@ -1,6 +1,6 @@
-use crate::channel::{message::EmojiReactionType, ChannelType};
-use crate::id::marker::{ChannelMarker, RoleMarker, UserMarker};
+use crate::channel::{ChannelType, message::EmojiReactionType};
 use crate::id::Id;
+use crate::id::marker::{ChannelMarker, RoleMarker, UserMarker};
 use serde::{Deserialize, Serialize};
 
 /// Dropdown-style [`Component`] that renders below messages.
@@ -20,6 +20,8 @@ pub struct SelectMenu {
     ///
     /// Defaults to `false`.
     pub disabled: bool,
+    /// Optional identifier for this select menu.
+    pub id: Option<i32>,
     /// This select menu's type.
     pub kind: SelectMenuType,
     /// Maximum number of options that may be chosen.
@@ -32,12 +34,22 @@ pub struct SelectMenu {
     pub options: Option<Vec<SelectMenuOption>>,
     /// Custom placeholder text if no option is selected.
     pub placeholder: Option<String>,
+    /// Whether a selection is required in a modal.
+    ///
+    /// Ignored in messages.
+    pub required: Option<bool>,
 }
 
 /// A [`SelectMenu`]'s type.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum SelectMenuType {
+    /// Channel select menus.
+    Channel,
+    /// Mentionable select menus.
+    Mentionable,
+    /// Role select menus.
+    Role,
     /// Select menus with a text-based `options` list.
     ///
     /// Select menus of this `kind` *must* set the `options` field to specify the options users
@@ -45,12 +57,6 @@ pub enum SelectMenuType {
     Text,
     /// User select menus.
     User,
-    /// Role select menus.
-    Role,
-    /// Mentionable select menus.
-    Mentionable,
-    /// Channel select menus.
-    Channel,
 }
 
 /// Dropdown options that are part of [`SelectMenu`].
@@ -76,12 +82,12 @@ pub struct SelectMenuOption {
 #[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(tag = "type", content = "id", rename_all = "snake_case")]
 pub enum SelectDefaultValue {
-    /// Default user.
-    User(Id<UserMarker>),
-    /// Default role.
-    Role(Id<RoleMarker>),
     /// Default channel.
     Channel(Id<ChannelMarker>),
+    /// Default role.
+    Role(Id<RoleMarker>),
+    /// Default user.
+    User(Id<UserMarker>),
 }
 
 #[cfg(test)]
@@ -95,11 +101,13 @@ mod tests {
         custom_id,
         default_values,
         disabled,
+        id,
         kind,
         max_values,
         min_values,
         options,
-        placeholder
+        placeholder,
+        required
     );
     assert_impl_all!(SelectMenu: Clone, Debug, Eq, Hash, PartialEq, Send, Sync);
 

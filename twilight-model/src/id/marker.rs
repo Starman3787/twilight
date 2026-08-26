@@ -238,6 +238,15 @@ pub struct StageMarker;
 #[non_exhaustive]
 pub struct StickerBannerAssetMarker;
 
+/// Marker for soundboard sound IDs.
+///
+/// Types such as [`AuditLogChange::SoundId`] use this ID marker.
+///
+/// [`AuditLogChange::SoundId`]: crate::guild::audit_log::AuditLogChange::SoundId
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct SoundMarker;
+
 /// Marker for sticker IDs.
 ///
 /// Types such as [`Message`] or [`Sticker`] use this ID marker.

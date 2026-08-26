@@ -16,7 +16,7 @@ use std::{
     collections::VecDeque,
     future::Future,
     pin::Pin,
-    task::{ready, Context, Poll},
+    task::{Context, Poll, ready},
 };
 use tokio::time::{Duration, Instant, Sleep};
 
@@ -188,7 +188,9 @@ fn nonreserved_commands_per_reset(heartbeat_interval: Duration) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::{nonreserved_commands_per_reset, CommandRatelimiter, PERIOD};
+    #![allow(clippy::unchecked_time_subtraction)]
+
+    use super::{CommandRatelimiter, PERIOD, nonreserved_commands_per_reset};
     use static_assertions::assert_impl_all;
     use std::{fmt::Debug, future::poll_fn, time::Duration};
     use tokio::time;
@@ -227,11 +229,11 @@ mod tests {
         assert_eq!(ratelimiter.available(), 0);
 
         // Should not refill until PERIOD has passed.
-        time::advance(PERIOD - Duration::from_millis(100)).await;
+        time::sleep(PERIOD - Duration::from_millis(100)).await;
         assert_eq!(ratelimiter.available(), 0);
 
         // All should be refilled.
-        time::advance(Duration::from_millis(100)).await;
+        time::sleep(Duration::from_millis(100)).await;
         assert_eq!(ratelimiter.available(), ratelimiter.max());
     }
 
@@ -245,7 +247,7 @@ mod tests {
         }
         assert_eq!(ratelimiter.available(), ratelimiter.max() / 2);
 
-        time::advance(PERIOD / 2).await;
+        time::sleep(PERIOD / 2).await;
 
         assert_eq!(ratelimiter.available(), ratelimiter.max() / 2);
         for _ in 0..ratelimiter.max() / 2 {
@@ -254,11 +256,11 @@ mod tests {
         assert_eq!(ratelimiter.available(), 0);
 
         // Half should be refilled.
-        time::advance(PERIOD / 2).await;
+        time::sleep(PERIOD / 2).await;
         assert_eq!(ratelimiter.available(), ratelimiter.max() / 2);
 
         // All should be refilled.
-        time::advance(PERIOD / 2).await;
+        time::sleep(PERIOD / 2).await;
         assert_eq!(ratelimiter.available(), ratelimiter.max());
     }
 
@@ -281,17 +283,17 @@ mod tests {
         let mut ratelimiter = CommandRatelimiter::new(HEARTBEAT_INTERVAL);
 
         for _ in 0..5 {
-            time::advance(Duration::from_millis(20)).await;
+            time::sleep(Duration::from_millis(20)).await;
             poll_fn(|cx| ratelimiter.poll_acquire(cx)).await;
         }
         assert_eq!(ratelimiter.available(), ratelimiter.max() - 5);
 
-        time::advance(PERIOD - Duration::from_millis(80)).await;
+        time::sleep(PERIOD - Duration::from_millis(80)).await;
         assert_eq!(ratelimiter.available(), ratelimiter.max() - 4);
 
         for _ in 0..4 {
             poll_fn(|cx| ratelimiter.poll_acquire(cx)).await;
-            time::advance(Duration::from_millis(20)).await;
+            time::sleep(Duration::from_millis(20)).await;
             assert_eq!(ratelimiter.available(), ratelimiter.max() - 4);
         }
     }

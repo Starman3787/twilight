@@ -3,8 +3,8 @@ use serde::Serialize;
 use twilight_model::{
     guild::Emoji,
     id::{
-        marker::{EmojiMarker, RoleMarker, UserMarker},
         Id,
+        marker::{EmojiMarker, RoleMarker, UserMarker},
     },
 };
 
@@ -48,6 +48,7 @@ impl CachedEmoji {
     }
 
     /// Name of the Emoji.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -58,6 +59,7 @@ impl CachedEmoji {
     }
 
     /// List of roles allowed to use this emoji.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn roles(&self) -> &[Id<RoleMarker>] {
         &self.roles
     }

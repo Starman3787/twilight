@@ -1,7 +1,10 @@
+#![allow(deprecated)]
+
 use twilight_model::{
     application::command::CommandOptionChoice,
     channel::message::{AllowedMentions, Component, Embed, MessageFlags},
     http::{attachment::Attachment, interaction::InteractionResponseData},
+    poll::Poll,
 };
 
 /// Create an [`InteractionResponseData`] with a builder.
@@ -9,13 +12,15 @@ use twilight_model::{
 /// # Example
 /// ```
 /// use twilight_model::channel::message::{
-///     component::{ActionRow, Button, ButtonStyle, Component},
 ///     MessageFlags,
+///     component::{ActionRow, Button, ButtonStyle, Component},
 /// };
 /// use twilight_util::builder::InteractionResponseDataBuilder;
 ///
 /// let component = Component::ActionRow(ActionRow {
+///     id: None,
 ///     components: Vec::from([Component::Button(Button {
+///         id: None,
 ///         style: ButtonStyle::Primary,
 ///         emoji: None,
 ///         label: Some("Button label".to_string()),
@@ -35,6 +40,7 @@ use twilight_model::{
 /// assert_eq!(interaction_response_data.components, Some(vec![component]));
 /// ```
 #[derive(Clone, Debug)]
+#[deprecated = "use the `interaction_response` builders instead"]
 #[must_use = "builders have no effect if unused"]
 pub struct InteractionResponseDataBuilder(InteractionResponseData);
 
@@ -52,11 +58,11 @@ impl InteractionResponseDataBuilder {
             flags: None,
             title: None,
             tts: None,
+            poll: None,
         })
     }
 
     /// Consume the builder, returning an [`InteractionResponseData`].
-    #[allow(clippy::missing_const_for_fn)]
     #[must_use = "builders have no effect if unused"]
     pub fn build(self) -> InteractionResponseData {
         self.0
@@ -65,7 +71,6 @@ impl InteractionResponseDataBuilder {
     /// Set the [`AllowedMentions`] of the callback.
     ///
     /// Defaults to [`None`].
-    #[allow(clippy::missing_const_for_fn)]
     pub fn allowed_mentions(mut self, allowed_mentions: AllowedMentions) -> Self {
         self.0.allowed_mentions = Some(allowed_mentions);
 
@@ -160,6 +165,13 @@ impl InteractionResponseDataBuilder {
 
         self
     }
+
+    /// Set the poll of the callback.
+    pub fn poll(mut self, poll: Poll) -> Self {
+        self.0.poll = Some(poll);
+
+        self
+    }
 }
 
 impl Default for InteractionResponseDataBuilder {
@@ -175,9 +187,10 @@ mod tests {
     use std::fmt::Debug;
     use twilight_model::{
         channel::message::{
-            component::{Button, ButtonStyle},
             MentionType,
+            component::{Button, ButtonStyle},
         },
+        poll::{PollLayoutType, PollMedia},
         util::Timestamp,
     };
 
@@ -204,6 +217,7 @@ mod tests {
             url: None,
             disabled: false,
             sku_id: None,
+            id: None,
         });
 
         let embed = Embed {
@@ -222,6 +236,18 @@ mod tests {
             video: None,
         };
 
+        let poll = Poll {
+            answers: vec![],
+            allow_multiselect: false,
+            expiry: None,
+            layout_type: PollLayoutType::Default,
+            question: PollMedia {
+                emoji: None,
+                text: Some("lorem ipsum".to_owned()),
+            },
+            results: None,
+        };
+
         let value = InteractionResponseDataBuilder::new()
             .allowed_mentions(allowed_mentions.clone())
             .components([component.clone()])
@@ -229,6 +255,7 @@ mod tests {
             .embeds([embed.clone()])
             .flags(MessageFlags::empty())
             .tts(false)
+            .poll(poll.clone())
             .build();
 
         let expected = InteractionResponseData {
@@ -242,6 +269,7 @@ mod tests {
             flags: Some(MessageFlags::empty()),
             title: None,
             tts: Some(false),
+            poll: Some(poll),
         };
 
         assert_eq!(value, expected);

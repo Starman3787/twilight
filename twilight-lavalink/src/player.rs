@@ -17,13 +17,13 @@ use dashmap::DashMap;
 use std::{
     fmt::Debug,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering},
     },
 };
 use twilight_model::id::{
-    marker::{ChannelMarker, GuildMarker},
     Id,
+    marker::{ChannelMarker, GuildMarker},
 };
 
 /// Retrieve and create players for guilds.
@@ -115,8 +115,8 @@ impl Player {
     ///
     /// ```
     /// use twilight_lavalink::{
-    ///     model::{Pause, Play},
     ///     Lavalink,
+    ///     model::{Pause, Play},
     /// };
     /// # use twilight_model::id::Id;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -149,7 +149,7 @@ impl Player {
         tracing::debug!("sending event on guild player {}: {event:?}", self.guild_id);
 
         match &event {
-            OutgoingEvent::Pause(event) => self.paused.store(event.pause, Ordering::Release),
+            OutgoingEvent::Pause(event) => self.paused.store(event.paused, Ordering::Release),
             OutgoingEvent::Volume(event) => {
                 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 self.volume.store(event.volume, Ordering::Release);

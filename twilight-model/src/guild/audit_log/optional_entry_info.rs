@@ -1,8 +1,8 @@
 use crate::{
     guild::GuildIntegrationType,
     id::{
-        marker::{ChannelMarker, GenericMarker, MessageMarker},
         Id,
+        marker::{ChannelMarker, GenericMarker, MessageMarker},
     },
 };
 use serde::{Deserialize, Serialize};
@@ -159,6 +159,9 @@ pub struct AuditLogOptionalEntryInfo {
     /// [`AuditLogEventType::ChannelOverwriteUpdate`]: super::AuditLogEventType::ChannelOverwriteUpdate
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
 }
 
 #[cfg(test)]

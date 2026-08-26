@@ -1,6 +1,6 @@
 use crate::{
     channel::message::EmojiReactionType,
-    id::{marker::SkuMarker, Id},
+    id::{Id, marker::SkuMarker},
 };
 use serde::{Deserialize, Serialize};
 
@@ -24,16 +24,18 @@ pub struct Button {
     pub disabled: bool,
     /// Visual emoji for clients to display with the button.
     pub emoji: Option<EmojiReactionType>,
+    /// Optional identifier for the button.
+    pub id: Option<i32>,
     /// Text appearing on the button.
     pub label: Option<String>,
-    /// Style variant of the button.
-    pub style: ButtonStyle,
-    /// URL for buttons of a [`ButtonStyle::Link`] style.
-    pub url: Option<String>,
     /// The ID of the SKU that is attached to the button.
     ///
     /// This field is required when using the [`ButtonStyle::Premium`] style.
     pub sku_id: Option<Id<SkuMarker>>,
+    /// Style variant of the button.
+    pub style: ButtonStyle,
+    /// URL for buttons of a [`ButtonStyle::Link`] style.
+    pub url: Option<String>,
 }
 
 /// Style of a [`Button`].

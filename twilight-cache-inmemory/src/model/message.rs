@@ -4,20 +4,20 @@ use serde::Serialize;
 use twilight_model::{
     application::interaction::InteractionType,
     channel::{
-        message::{
-            sticker::MessageSticker, Component, Embed, Message, MessageActivity,
-            MessageApplication, MessageCall, MessageFlags, MessageInteraction, MessageReference,
-            MessageSnapshot, MessageType, Reaction, RoleSubscriptionData,
-        },
         Attachment, ChannelMention,
+        message::{
+            Component, Embed, Message, MessageActivity, MessageApplication, MessageCall,
+            MessageFlags, MessageInteraction, MessageReference, MessageSnapshot, MessageType,
+            Reaction, RoleSubscriptionData, sticker::MessageSticker,
+        },
     },
     guild::PartialMember,
     id::{
+        Id,
         marker::{
             ApplicationMarker, ChannelMarker, GuildMarker, InteractionMarker, MessageMarker,
             RoleMarker, UserMarker, WebhookMarker,
         },
-        Id,
     },
     poll::Poll,
     util::Timestamp,
@@ -47,6 +47,7 @@ impl CachedMessageInteraction {
     }
 
     /// Name of the interaction used.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -151,6 +152,7 @@ impl CachedMessage {
     /// receiving the attachments of messages.
     ///
     /// [`Message::attachments`]: twilight_model::channel::Message::attachments
+    #[allow(clippy::missing_const_for_fn)]
     pub fn attachments(&self) -> &[Attachment] {
         &self.attachments
     }
@@ -160,6 +162,11 @@ impl CachedMessage {
     /// If the author is a webhook, this is its ID.
     pub const fn author(&self) -> Id<UserMarker> {
         self.author
+    }
+
+    /// Information about the call associated with this message.
+    pub const fn call(&self) -> Option<&MessageCall> {
+        self.call.as_ref()
     }
 
     /// ID of the channel the message was sent in.
@@ -173,6 +180,7 @@ impl CachedMessage {
     /// receiving the components of messages.
     ///
     /// [`Message::components`]: twilight_model::channel::Message::components
+    #[allow(clippy::missing_const_for_fn)]
     pub fn components(&self) -> &[Component] {
         &self.components
     }
@@ -183,6 +191,7 @@ impl CachedMessage {
     /// receiving the content of messages.
     ///
     /// [`Message::content`]: twilight_model::channel::Message::content
+    #[allow(clippy::missing_const_for_fn)]
     pub fn content(&self) -> &str {
         &self.content
     }
@@ -198,6 +207,7 @@ impl CachedMessage {
     /// receiving the embeds of messages.
     ///
     /// [`Message::embeds`]: twilight_model::channel::Message::embeds
+    #[allow(clippy::missing_const_for_fn)]
     pub fn embeds(&self) -> &[Embed] {
         &self.embeds
     }
@@ -233,6 +243,7 @@ impl CachedMessage {
     }
 
     /// Channels mentioned in the content.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn mention_channels(&self) -> &[ChannelMention] {
         &self.mention_channels
     }
@@ -243,13 +254,22 @@ impl CachedMessage {
     }
 
     /// Roles mentioned in the content.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn mention_roles(&self) -> &[Id<RoleMarker>] {
         &self.mention_roles
     }
 
     /// Users mentioned in the content.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn mentions(&self) -> &[Id<UserMarker>] {
         &self.mentions
+    }
+
+    /// Snapshots associated with the [`Message::reference`].
+    ///
+    /// [`Message::reference`]: twilight_model::channel::Message::reference
+    pub fn message_snapshots(&self) -> &[MessageSnapshot] {
+        &self.message_snapshots
     }
 
     /// Whether or not the message is pinned.
@@ -258,6 +278,7 @@ impl CachedMessage {
     }
 
     /// Reactions to the message.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn reactions(&self) -> &[Reaction] {
         &self.reactions
     }
@@ -274,6 +295,7 @@ impl CachedMessage {
     }
 
     /// Stickers within the message.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn sticker_items(&self) -> &[MessageSticker] {
         &self.sticker_items
     }

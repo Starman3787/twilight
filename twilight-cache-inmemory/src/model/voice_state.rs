@@ -1,8 +1,8 @@
 use serde::Serialize;
 use twilight_model::{
     id::{
-        marker::{ChannelMarker, GuildMarker, UserMarker},
         Id,
+        marker::{ChannelMarker, GuildMarker, UserMarker},
     },
     util::Timestamp,
     voice::VoiceState,
@@ -77,6 +77,7 @@ impl CachedVoiceState {
     }
 
     /// Session ID.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
@@ -166,8 +167,8 @@ mod tests {
     use std::fmt::Debug;
     use twilight_model::{
         id::{
-            marker::{ChannelMarker, GuildMarker, UserMarker},
             Id,
+            marker::{ChannelMarker, GuildMarker, UserMarker},
         },
         voice::VoiceState,
     };

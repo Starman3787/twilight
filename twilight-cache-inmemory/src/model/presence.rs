@@ -2,8 +2,8 @@ use serde::Serialize;
 use twilight_model::{
     gateway::presence::{Activity, ClientStatus, Presence, Status},
     id::{
-        marker::{GuildMarker, UserMarker},
         Id,
+        marker::{GuildMarker, UserMarker},
     },
 };
 
@@ -23,6 +23,7 @@ pub struct CachedPresence {
 
 impl CachedPresence {
     /// Current activities.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn activities(&self) -> &[Activity] {
         &self.activities
     }

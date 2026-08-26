@@ -1,6 +1,6 @@
 //! Errors returned by gateway operations.
 
-#[cfg(any(feature = "zlib-stock", feature = "zlib-simd", feature = "zstd"))]
+#[cfg(any(feature = "zlib", feature = "zstd"))]
 pub use crate::compression::{CompressionError, CompressionErrorType};
 
 use std::{
@@ -64,14 +64,17 @@ pub enum ChannelErrorType {
 /// Failure when fetching the recommended number of shards to use from Discord's
 /// REST API.
 #[cfg(feature = "twilight-http")]
+#[deprecated(since = "0.17.2")]
 #[derive(Debug)]
 pub struct StartRecommendedError {
     /// Type of error.
+    #[allow(deprecated)]
     pub(crate) kind: StartRecommendedErrorType,
     /// Source error if available.
     pub(crate) source: Option<Box<dyn Error + Send + Sync>>,
 }
 
+#[allow(deprecated)]
 #[cfg(feature = "twilight-http")]
 impl StartRecommendedError {
     /// Immutable reference to the type of error that occurred.
@@ -98,6 +101,7 @@ impl StartRecommendedError {
     }
 }
 
+#[allow(deprecated)]
 #[cfg(feature = "twilight-http")]
 impl Display for StartRecommendedError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -110,6 +114,7 @@ impl Display for StartRecommendedError {
     }
 }
 
+#[allow(deprecated)]
 #[cfg(feature = "twilight-http")]
 impl Error for StartRecommendedError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
@@ -121,6 +126,7 @@ impl Error for StartRecommendedError {
 
 /// Type of [`StartRecommendedError`] that occurred.
 #[cfg(feature = "twilight-http")]
+#[deprecated(since = "0.17.2")]
 #[derive(Debug)]
 pub enum StartRecommendedErrorType {
     /// Received gateway event failed to be deserialized.
@@ -168,7 +174,7 @@ impl ReceiveMessageError {
     }
 
     /// Shortcut to create a new error for a message compression error.
-    #[cfg(any(feature = "zlib-stock", feature = "zlib-simd", feature = "zstd"))]
+    #[cfg(any(feature = "zlib", feature = "zstd"))]
     pub(crate) fn from_compression(source: CompressionError) -> Self {
         Self {
             kind: ReceiveMessageErrorType::Compression,
@@ -180,7 +186,7 @@ impl ReceiveMessageError {
 impl Display for ReceiveMessageError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match &self.kind {
-            #[cfg(any(feature = "zlib-stock", feature = "zlib-simd", feature = "zstd"))]
+            #[cfg(any(feature = "zlib", feature = "zstd"))]
             ReceiveMessageErrorType::Compression => {
                 f.write_str("binary message could not be decompressed")
             }
@@ -208,7 +214,7 @@ pub enum ReceiveMessageErrorType {
     /// Binary message could not be decompressed.
     ///
     /// The associated error downcasts to [`CompressionError`].
-    #[cfg(any(feature = "zlib-stock", feature = "zlib-simd", feature = "zstd"))]
+    #[cfg(any(feature = "zlib", feature = "zstd"))]
     Compression,
     /// Gateway event could not be deserialized.
     Deserializing {

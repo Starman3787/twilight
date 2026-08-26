@@ -4,13 +4,13 @@ use serde::Serialize;
 use twilight_model::{
     gateway::payload::incoming::GuildUpdate,
     guild::{
-        scheduled_event::GuildScheduledEvent, AfkTimeout, DefaultMessageNotificationLevel,
-        ExplicitContentFilter, Guild, GuildFeature, MfaLevel, NSFWLevel, Permissions, PremiumTier,
-        SystemChannelFlags, VerificationLevel,
+        AfkTimeout, DefaultMessageNotificationLevel, ExplicitContentFilter, Guild, GuildFeature,
+        MfaLevel, NSFWLevel, Permissions, PremiumTier, SystemChannelFlags, VerificationLevel,
+        scheduled_event::GuildScheduledEvent,
     },
     id::{
-        marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
         Id,
+        marker::{ApplicationMarker, ChannelMarker, GuildMarker, UserMarker},
     },
     util::{ImageHash, Timestamp},
 };
@@ -123,6 +123,7 @@ impl CachedGuild {
     }
 
     /// Scheduled guild events.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn guild_scheduled_events(&self) -> &[GuildScheduledEvent] {
         &self.guild_scheduled_events
     }
@@ -182,6 +183,7 @@ impl CachedGuild {
     }
 
     /// Name of the guild.
+    #[allow(clippy::missing_const_for_fn)]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -209,6 +211,7 @@ impl CachedGuild {
     /// Preferred locale for Community guilds.
     ///
     /// Used in server discovery and notices from Discord. Defaults to "en-US".
+    #[allow(clippy::missing_const_for_fn)]
     pub fn preferred_locale(&self) -> &str {
         &self.preferred_locale
     }

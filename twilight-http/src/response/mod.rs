@@ -54,8 +54,8 @@ pub use self::{future::ResponseFuture, status_code::StatusCode};
 
 use self::marker::ListBody;
 use http::{
-    header::{HeaderValue, Iter as HeaderMapIter},
     Response as HyperResponse,
+    header::{HeaderValue, Iter as HeaderMapIter},
 };
 use http_body_util::BodyExt;
 use hyper::body::{Bytes, Incoming};
@@ -108,14 +108,12 @@ impl Display for DeserializeBodyError {
             &DeserializeBodyErrorType::BodyNotUtf8 { .. } => {
                 f.write_str("response body is not a utf-8 valid string")
             }
-            DeserializeBodyErrorType::Chunking { .. } => {
-                f.write_str("failed to chunk response body")
-            }
+            DeserializeBodyErrorType::Chunking => f.write_str("failed to chunk response body"),
             #[cfg(feature = "decompression")]
-            DeserializeBodyErrorType::Decompressing { .. } => {
+            DeserializeBodyErrorType::Decompressing => {
                 f.write_str("failed to decompress response body")
             }
-            DeserializeBodyErrorType::Deserializing { .. } => {
+            DeserializeBodyErrorType::Deserializing => {
                 f.write_str("failed to deserialize response body")
             }
         }
@@ -612,9 +610,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        marker::{EmptyBody, ListBody},
         BytesFuture, DeserializeBodyError, DeserializeBodyErrorType, HeaderIter, ModelFuture,
         Response, TextFuture,
+        marker::{EmptyBody, ListBody},
     };
     use static_assertions::assert_impl_all;
     use std::{fmt::Debug, future::Future, iter::FusedIterator};

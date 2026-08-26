@@ -6,31 +6,10 @@ HTTP support for the twilight ecosystem.
 
 ## Examples
 
-There are a few usage examples located in the [root of the `twilight`
-repository][github examples link].
+There are a few examples located in the [repository][github examples link].
+Check out our [template] to get started quickly.
 
 ## Features
-
-### Crypto provider
-
-Using [`rustls`] for TLS requires configuring a crypto provider via crate
-features or manually installing a global default. The default is `rustls-ring`.
-
-#### `rustls-ring`
-
-The `rustls-ring` feature will enable the use of [`ring`] as the crypto
-provider. This is recommended for platform compatibility.
-
-#### `rustls-aws_lc_rs`
-
-The `rustls-aws_lc_rs` feature will enable the use of [`aws-lc-rs`] as the
-crypto provider. This is recommended for performance and on widely used
-platforms.
-
-#### Manual installation
-
-If none of the other crypto providers are enabled, a custom one must be
-installed by the application using [`CryptoProvider::install_default`].
 
 ### Decompression
 
@@ -139,3 +118,4 @@ DNS resolver on the application level.
 [license badge]: https://img.shields.io/badge/license-ISC-blue.svg?style=for-the-badge&logo=pastebin
 [license link]: https://github.com/twilight-rs/twilight/blob/main/LICENSE.md
 [rust badge]: https://img.shields.io/badge/rust-1.79+-93450a.svg?style=for-the-badge&logo=rust
+[template]: https://github.com/twilight-rs/template

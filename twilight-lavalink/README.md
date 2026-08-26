@@ -47,6 +47,13 @@ installed by the application using [`CryptoProvider::install_default`].
 features. These features are mutually exclusive. `rustls-platform-verifier` is
 enabled by default.
 
+#### `tls`
+
+The `tls` switches the underlying protocol to communicate with the lavalink server.
+If enabled, http2 will be used. By default, http1 is used. You will need to enable http2 support
+in your lavalink configuration. Also enables TLS support in all communication over websocket
+and https calls.
+
 #### `native-tls`
 
 The `native-tls` feature enables [`tokio-websockets`]' `native-tls` feature.
@@ -110,7 +117,7 @@ async fn main() -> anyhow::Result<()> {
     let user_id = http.current_user().await?.model().await?.id;
 
     let lavalink = Lavalink::new(user_id, shard_count);
-    lavalink.add(lavalink_host, lavalink_auth).await?;
+    lavalink.add(lavalink_host, lavalink_auth, None).await?;
 
     let intents = Intents::GUILD_MESSAGES | Intents::GUILD_VOICE_STATES;
     let mut shard = Shard::new(ShardId::ONE, token, intents);
@@ -135,6 +142,8 @@ There is also an example of a basic bot located in the [root of the
 [Lavalink]: https://github.com/freyacodes/Lavalink
 [`CryptoProvider::install_default`]: https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html#method.install_default
 [`aws-lc-rs`]: https://crates.io/crates/aws-lc-rs
+[Lavalink Info]: https://lavalink.dev/api/rest.html#get-lavalink-version
+[Update Session]: https://lavalink.dev/api/rest#update-session
 [`http`]: https://crates.io/crates/http
 [`ring`]: https://crates.io/crates/ring
 [`rustls`]: https://crates.io/crates/rustls

@@ -1,4 +1,4 @@
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 #![warn(
     clippy::missing_const_for_fn,
@@ -14,11 +14,12 @@
 )]
 
 pub mod client;
+pub mod http;
 pub mod model;
 pub mod node;
 pub mod player;
 
-#[cfg(feature = "http-support")]
-pub mod http;
-
 pub use self::{client::Lavalink, node::Node, player::PlayerManager};
+
+/// Lavalink API version used by this crate.
+pub const API_VERSION: u8 = 4;

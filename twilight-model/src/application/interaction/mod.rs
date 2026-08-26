@@ -5,6 +5,7 @@
 //! [Discord Docs/Receiving and Responding]: https://discord.com/developers/docs/interactions/receiving-and-responding
 
 pub mod application_command;
+pub mod callback;
 pub mod message_component;
 pub mod modal;
 
@@ -28,15 +29,15 @@ use crate::{
     channel::{Channel, Message},
     guild::{GuildFeature, PartialMember, Permissions},
     id::{
-        marker::{ApplicationMarker, ChannelMarker, GuildMarker, InteractionMarker, UserMarker},
         AnonymizableId, Id,
+        marker::{ApplicationMarker, ChannelMarker, GuildMarker, InteractionMarker, UserMarker},
     },
     oauth::ApplicationIntegrationMap,
     user::User,
 };
 use serde::{
-    de::{Error as DeError, IgnoredAny, MapAccess, Visitor},
     Deserialize, Deserializer, Serialize,
+    de::{Error as DeError, IgnoredAny, MapAccess, Visitor},
 };
 use serde_value::{DeserializerError, Value};
 use std::fmt::{Formatter, Result as FmtResult};
@@ -55,6 +56,11 @@ pub struct Interaction {
     pub app_permissions: Option<Permissions>,
     /// ID of the associated application.
     pub application_id: Id<ApplicationMarker>,
+    /// Maximum file size in bytes the user may upload in this interaction.
+    ///
+    /// Computed by Discord per-interaction as the maximum of the user's
+    /// upload cap (e.g. Nitro) and the guild's boost-tier cap.
+    pub attachment_size_limit: u64,
     /// Mapping of installation contexts that the interaction was
     /// authorized for to related user or guild IDs.
     pub authorizing_integration_owners:
@@ -169,6 +175,21 @@ impl Interaction {
         }
     }
 
+    /// The user that invoked the interaction.
+    ///
+    /// This will first check for the [`member`]'s
+    /// [`user`][`PartialMember::user`] and then, if not present, check the
+    /// [`user`].
+    ///
+    /// [`member`]: Self::member
+    /// [`user`]: Self::user
+    pub fn into_author(self) -> Option<User> {
+        match self.member {
+            Some(member) if member.user.is_some() => member.user,
+            _ => self.user,
+        }
+    }
+
     /// Whether the interaction was invoked in a DM.
     pub const fn is_dm(&self) -> bool {
         self.user.is_some()
@@ -208,6 +229,7 @@ enum InteractionField {
     User,
     Version,
     AuthorizingIntegrationOwners,
+    AttachmentSizeLimit,
 }
 
 struct InteractionVisitor;
@@ -241,6 +263,7 @@ impl<'de> Visitor<'de> for InteractionVisitor {
         let mut authorizing_integration_owners: Option<
             ApplicationIntegrationMap<AnonymizableId<GuildMarker>, Id<UserMarker>>,
         > = None;
+        let mut attachment_size_limit: Option<u64> = None;
 
         loop {
             let key = match map.next_key() {
@@ -384,11 +407,20 @@ impl<'de> Visitor<'de> for InteractionVisitor {
 
                     authorizing_integration_owners = map.next_value()?;
                 }
+                InteractionField::AttachmentSizeLimit => {
+                    if attachment_size_limit.is_some() {
+                        return Err(DeError::duplicate_field("attachment_size_limit"));
+                    }
+
+                    attachment_size_limit = map.next_value()?;
+                }
             }
         }
 
         let application_id =
             application_id.ok_or_else(|| DeError::missing_field("application_id"))?;
+        let attachment_size_limit =
+            attachment_size_limit.ok_or_else(|| DeError::missing_field("attachment_size_limit"))?;
         let authorizing_integration_owners = authorizing_integration_owners
             .ok_or_else(|| DeError::missing_field("authorizing_integration_owners"))?;
         let id = id.ok_or_else(|| DeError::missing_field("id"))?;
@@ -436,6 +468,7 @@ impl<'de> Visitor<'de> for InteractionVisitor {
         Ok(Self::Value {
             app_permissions,
             application_id,
+            attachment_size_limit,
             authorizing_integration_owners,
             channel,
             channel_id,
@@ -474,7 +507,58 @@ pub enum InteractionData {
     /// Data received for the [`ModalSubmit`] interaction type.
     ///
     /// [`ModalSubmit`]: InteractionType::ModalSubmit
-    ModalSubmit(ModalInteractionData),
+    ModalSubmit(Box<ModalInteractionData>),
+}
+
+impl From<Box<CommandData>> for InteractionData {
+    fn from(value: Box<CommandData>) -> Self {
+        InteractionData::ApplicationCommand(value)
+    }
+}
+
+impl From<Box<MessageComponentInteractionData>> for InteractionData {
+    fn from(value: Box<MessageComponentInteractionData>) -> Self {
+        InteractionData::MessageComponent(value)
+    }
+}
+
+impl From<Box<ModalInteractionData>> for InteractionData {
+    fn from(value: Box<ModalInteractionData>) -> Self {
+        InteractionData::ModalSubmit(value)
+    }
+}
+
+impl TryFrom<InteractionData> for Box<CommandData> {
+    type Error = InteractionData;
+
+    fn try_from(value: InteractionData) -> Result<Self, Self::Error> {
+        match value {
+            InteractionData::ApplicationCommand(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<InteractionData> for Box<MessageComponentInteractionData> {
+    type Error = InteractionData;
+
+    fn try_from(value: InteractionData) -> Result<Self, Self::Error> {
+        match value {
+            InteractionData::MessageComponent(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
+}
+
+impl TryFrom<InteractionData> for Box<ModalInteractionData> {
+    type Error = InteractionData;
+
+    fn try_from(value: InteractionData) -> Result<Self, Self::Error> {
+        match value {
+            InteractionData::ModalSubmit(inner) => Ok(inner),
+            _ => Err(value),
+        }
+    }
 }
 
 /// Partial guild containing only the fields sent in the partial guild
@@ -486,23 +570,23 @@ pub enum InteractionData {
 /// info.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize, Hash)]
 pub struct InteractionPartialGuild {
-    /// Id of the guild.
-    pub id: Option<Id<GuildMarker>>,
     /// Enabled guild features
     pub features: Option<Vec<GuildFeature>>,
+    /// Id of the guild.
+    pub id: Option<Id<GuildMarker>>,
     pub locale: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        application_command::{CommandData, CommandDataOption, CommandOptionValue},
         Interaction, InteractionData, InteractionDataResolved, InteractionMember, InteractionType,
+        application_command::{CommandData, CommandDataOption, CommandOptionValue},
     };
     use crate::{
         application::{
             command::{CommandOptionType, CommandType},
-            monetization::{entitlement::Entitlement, EntitlementType},
+            monetization::{EntitlementType, entitlement::Entitlement},
         },
         channel::Channel,
         guild::{MemberFlags, PartialMember, Permissions},
@@ -524,6 +608,7 @@ mod tests {
         let value = Interaction {
             app_permissions: Some(Permissions::SEND_MESSAGES),
             application_id: Id::new(100),
+            attachment_size_limit: 8_388_608,
             authorizing_integration_owners: ApplicationIntegrationMap {
                 guild: None,
                 user: None,
@@ -570,8 +655,8 @@ mod tests {
             data: Some(InteractionData::ApplicationCommand(Box::new(CommandData {
                 guild_id: None,
                 id: Id::new(300),
-                name: "command name".into(),
                 kind: CommandType::ChatInput,
+                name: "command name".into(),
                 options: Vec::from([CommandDataOption {
                     name: "member".into(),
                     value: CommandOptionValue::User(Id::new(600)),
@@ -583,6 +668,8 @@ mod tests {
                         Id::new(600),
                         InteractionMember {
                             avatar: None,
+                            avatar_decoration_data: None,
+                            banner: None,
                             communication_disabled_until: None,
                             flags,
                             joined_at,
@@ -614,6 +701,7 @@ mod tests {
                             mfa_enabled: None,
                             name: "username".into(),
                             premium_type: None,
+                            primary_guild: None,
                             public_flags: None,
                             system: None,
                             verified: None,
@@ -643,6 +731,8 @@ mod tests {
             locale: Some("en-GB".to_owned()),
             member: Some(PartialMember {
                 avatar: None,
+                avatar_decoration_data: None,
+                banner: None,
                 communication_disabled_until: None,
                 deaf: false,
                 flags,
@@ -668,6 +758,7 @@ mod tests {
                     mfa_enabled: None,
                     name: "username".into(),
                     premium_type: None,
+                    primary_guild: None,
                     public_flags: None,
                     system: None,
                     verified: None,
@@ -684,7 +775,7 @@ mod tests {
             &[
                 Token::Struct {
                     name: "Interaction",
-                    len: 14,
+                    len: 15,
                 },
                 Token::Str("app_permissions"),
                 Token::Some,
@@ -692,6 +783,8 @@ mod tests {
                 Token::Str("application_id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("100"),
+                Token::Str("attachment_size_limit"),
+                Token::U64(8_388_608),
                 Token::Str("authorizing_integration_owners"),
                 Token::Struct {
                     name: "ApplicationIntegrationMap",
@@ -723,10 +816,10 @@ mod tests {
                 Token::Str("id"),
                 Token::NewtypeStruct { name: "Id" },
                 Token::Str("300"),
-                Token::Str("name"),
-                Token::Str("command name"),
                 Token::Str("type"),
                 Token::U8(1),
+                Token::Str("name"),
+                Token::Str("command name"),
                 Token::Str("options"),
                 Token::Seq { len: Some(1) },
                 Token::Struct {

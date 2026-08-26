@@ -1,30 +1,38 @@
 use std::{
-    env,
+    env, iter,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
-use tokio::{task::JoinSet, time};
+use tokio::{
+    task::JoinSet,
+    time::{self, Instant},
+};
 use tokio_stream::StreamExt as _;
 use tokio_util::sync::CancellationToken;
-use twilight_gateway::{
-    Config, ConfigBuilder, EventTypeFlags, Intents, Shard, ShardId, StreamExt as _,
-};
+use twilight_gateway::{Config, EventTypeFlags, Intents, Shard, StreamExt as _};
 use twilight_http::Client;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
+    // Select rustls backend
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .unwrap();
+
     let token = env::var("DISCORD_TOKEN")?;
     let client = Client::new(token.clone());
     let config = Config::new(token, Intents::GUILDS);
-    let config_callback = |_, builder: ConfigBuilder| builder.build();
 
-    let mut shards = twilight_gateway::create_recommended(&client, config.clone(), config_callback)
-        .await?
+    let info = client.gateway().authed().await?.model().await?;
+
+    let mut shards = twilight_gateway::bucket(0, 1, info.shards)
+        .zip(iter::repeat_n(config.clone(), info.shards as usize))
+        .map(|(shard_id, config)| Shard::with_config(shard_id, config))
         .collect::<Vec<_>>();
 
     loop {
@@ -34,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
             set.spawn(runner(shard));
         }
 
-        shards = reshard(&client, config.clone(), config_callback).await?;
+        shards = reshard(&client, config.clone()).await?;
     }
 }
 
@@ -54,11 +62,7 @@ async fn runner(mut shard: Shard) {
 }
 
 // Instrument to differentiate between the logs produced here and in `runner`.
-async fn reshard(
-    client: &Client,
-    config: Config,
-    config_callback: impl Fn(ShardId, ConfigBuilder) -> Config,
-) -> anyhow::Result<Vec<Shard>> {
+async fn reshard(client: &Client, config: Config) -> anyhow::Result<Vec<Shard>> {
     // Reshard every eight hours. This is an arbitrary number.
     const RESHARD_DURATION: Duration = Duration::from_secs(60 * 60 * 8);
 
@@ -66,9 +70,10 @@ async fn reshard(
 
     let info = client.gateway().authed().await?.model().await?;
 
-    let shards =
-        twilight_gateway::create_iterator(0..info.shards, info.shards, config, config_callback)
-            .collect::<Vec<_>>();
+    let shards = twilight_gateway::bucket(0, 1, info.shards)
+        .zip(iter::repeat_n(config, info.shards as usize))
+        .map(|(shard_id, config)| Shard::with_config(shard_id, config))
+        .collect::<Vec<_>>();
 
     let expected_duration = estimate_identifed(
         info.shards,
@@ -111,29 +116,24 @@ async fn identify(
     deadline: Instant,
     ct: CancellationToken,
 ) -> Shard {
-    let timeout = time::sleep_until(deadline.into());
-    tokio::pin!(timeout);
-    // Register timer.
-    timeout.as_mut().reset(deadline.into());
-
     loop {
         let identified_count = identified
             .iter()
             .fold(0, |acc, i| acc + i.load(Ordering::Relaxed) as usize);
-        tokio::select! {
-            biased;
-            _ = ct.cancelled() => return shard,
-            _ = &mut timeout, if identified_count >= (identified.len() * 3) / 4 => {
+        let future = ct.run_until_cancelled(time::timeout_at(deadline, shard.next()));
+
+        match future.await {
+            Some(Ok(Some(Err(source)))) => {
+                tracing::warn!(?source, "error receiving message");
+            }
+            Some(Err(_)) if identified_count >= (identified.len() * 3) / 4 => {
                 ct.cancel();
                 return shard;
-            },
-            Some(item) = shard.next() => {
-                if let Err(source) = item {
-                    tracing::warn!(?source, "error receiving message");
-                } else {
-                    let is_identified = shard.state().is_identified();
-                    identified[shard.id().number() as usize].store(is_identified, Ordering::Relaxed);
-                }
+            }
+            None => return shard,
+            _ => {
+                let is_identified = shard.state().is_identified();
+                identified[shard.id().number() as usize].store(is_identified, Ordering::Relaxed);
             }
         }
     }

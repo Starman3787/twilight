@@ -36,8 +36,8 @@ use twilight_model::{
         payload::incoming::{MessageCreate, ReactionAdd},
     },
     id::{
-        marker::{ChannelMarker, GuildMarker, MessageMarker},
         Id,
+        marker::{ChannelMarker, GuildMarker, MessageMarker},
     },
 };
 
@@ -171,20 +171,20 @@ impl Standby {
 
         match event {
             Event::InteractionCreate(e) => {
-                if e.kind == InteractionType::MessageComponent {
-                    if let Some(message) = &e.message {
-                        completions.add_with(&Self::process_specific_event(
-                            &self.components,
-                            message.id,
-                            e,
-                        ));
-                    }
+                if e.kind == InteractionType::MessageComponent
+                    && let Some(message) = &e.message
+                {
+                    completions.add_with(&Self::process_specific_event(
+                        &self.components,
+                        message.id,
+                        e,
+                    ));
                 }
             }
             Event::MessageCreate(e) => {
                 completions.add_with(&Self::process_specific_event(
                     &self.messages,
-                    e.0.channel_id,
+                    e.message.channel_id,
                     e,
                 ));
             }
@@ -777,6 +777,7 @@ impl Standby {
 
     /// Process a general event that is either of a particular type or in a
     /// particular guild.
+    #[allow(clippy::needless_pass_by_value)]
     #[tracing::instrument(level = "trace")]
     fn process_specific_event<
         K: Debug + Display + Eq + Hash + PartialEq + 'static,
@@ -1002,14 +1003,14 @@ impl ProcessResults {
     }
 
     /// Add another set of results to this set.
-    fn add_with(&mut self, other: &Self) {
+    const fn add_with(&mut self, other: &Self) {
         self.dropped = self.dropped.saturating_add(other.dropped);
         self.fulfilled = self.fulfilled.saturating_add(other.fulfilled);
         self.sent = self.sent.saturating_add(other.sent);
     }
 
     /// Handle a process status.
-    fn handle(&mut self, status: ProcessStatus) {
+    const fn handle(&mut self, status: ProcessStatus) {
         match status {
             ProcessStatus::Dropped => {
                 self.dropped += 1;
@@ -1062,19 +1063,19 @@ mod tests {
     use twilight_gateway::{Event, EventType};
     use twilight_model::{
         application::interaction::{
-            message_component::MessageComponentInteractionData, Interaction, InteractionData,
-            InteractionType,
+            Interaction, InteractionData, InteractionType,
+            message_component::MessageComponentInteractionData,
         },
         channel::{
-            message::{component::ComponentType, EmojiReactionType, Message, MessageType},
             Channel, ChannelType,
+            message::{EmojiReactionType, Message, MessageType, component::ComponentType},
         },
         gateway::{
-            payload::incoming::{InteractionCreate, MessageCreate, ReactionAdd, Ready, RoleDelete},
             GatewayReaction, ShardId,
+            payload::incoming::{InteractionCreate, MessageCreate, ReactionAdd, Ready, RoleDelete},
         },
         guild::Permissions,
-        id::{marker::GuildMarker, Id},
+        id::{Id, marker::GuildMarker},
         oauth::{ApplicationFlags, ApplicationIntegrationMap, PartialApplication},
         user::{CurrentUser, User},
         util::Timestamp,
@@ -1105,6 +1106,7 @@ mod tests {
                 mfa_enabled: None,
                 name: "twilight".to_owned(),
                 premium_type: None,
+                primary_guild: None,
                 public_flags: None,
                 system: None,
                 verified: None,
@@ -1166,6 +1168,7 @@ mod tests {
                 guild: None,
                 user: None,
             },
+            attachment_size_limit: 0,
             channel: Some(Channel {
                 bitrate: None,
                 guild_id: None,
@@ -1239,6 +1242,7 @@ mod tests {
                 mfa_enabled: None,
                 name: "twilight".to_owned(),
                 premium_type: None,
+                primary_guild: None,
                 public_flags: None,
                 system: None,
                 verified: None,
@@ -1411,7 +1415,7 @@ mod tests {
             },
             version: 6,
         };
-        let event = Event::Ready(Box::new(ready));
+        let event = Event::Ready(ready);
 
         let standby = Standby::new();
         let wait = standby.wait_for_event(|event: &Event| match event {
@@ -1444,7 +1448,10 @@ mod tests {
     #[tokio::test]
     async fn test_wait_for_message() {
         let message = message();
-        let event = Event::MessageCreate(Box::new(MessageCreate(message)));
+        let event = Event::MessageCreate(Box::new(MessageCreate {
+            message,
+            channel_type: None,
+        }));
 
         let standby = Standby::new();
         let wait = standby.wait_for_message(Id::new(1), |message: &MessageCreate| {
@@ -1462,14 +1469,23 @@ mod tests {
     async fn test_wait_for_message_stream() {
         let standby = Standby::new();
         let mut stream = standby.wait_for_message_stream(Id::new(1), |_: &MessageCreate| true);
-        standby.process(&Event::MessageCreate(Box::new(MessageCreate(message()))));
-        standby.process(&Event::MessageCreate(Box::new(MessageCreate(message()))));
+        standby.process(&Event::MessageCreate(Box::new(MessageCreate {
+            message: message(),
+            channel_type: None,
+        })));
+        standby.process(&Event::MessageCreate(Box::new(MessageCreate {
+            message: message(),
+            channel_type: None,
+        })));
 
         assert!(stream.next().await.is_some());
         assert!(stream.next().await.is_some());
         drop(stream);
         assert_eq!(1, standby.messages.len());
-        standby.process(&Event::MessageCreate(Box::new(MessageCreate(message()))));
+        standby.process(&Event::MessageCreate(Box::new(MessageCreate {
+            message: message(),
+            channel_type: None,
+        })));
         assert!(standby.messages.is_empty());
     }
 
@@ -1572,7 +1588,10 @@ mod tests {
 
         // generic event handler gets message creates
         let wait = standby.wait_for_event(|event: &Event| event.kind() == EventType::MessageCreate);
-        standby.process(&Event::MessageCreate(Box::new(MessageCreate(message()))));
+        standby.process(&Event::MessageCreate(Box::new(MessageCreate {
+            message: message(),
+            channel_type: None,
+        })));
         assert!(matches!(wait.await, Ok(Event::MessageCreate(_))));
 
         // generic event handler gets reaction adds

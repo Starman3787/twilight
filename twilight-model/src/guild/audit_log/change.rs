@@ -8,16 +8,39 @@ use crate::{
     guild::{
         DefaultMessageNotificationLevel, ExplicitContentFilter, MfaLevel, NSFWLevel, Permissions,
         VerificationLevel,
+        auto_moderation::{
+            AutoModerationAction, AutoModerationEventType, AutoModerationTriggerMetadata,
+            AutoModerationTriggerType,
+        },
+        scheduled_event,
     },
     id::{
-        marker::{
-            ApplicationMarker, ChannelMarker, GenericMarker, GuildMarker, RoleMarker, UserMarker,
-        },
         Id,
+        marker::{
+            ApplicationMarker, ChannelMarker, EmojiMarker, GenericMarker, GuildMarker, RoleMarker,
+            SoundMarker, UserMarker,
+        },
     },
     util::{ImageHash, Timestamp},
 };
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
+
+/// Volume of a soundboard sound, from 0 to 1.
+///
+/// A newtype over [`f64`] that provides [`Eq`] and [`Hash`] by comparing the
+/// underlying bits, which is sound for the finite range 0.0–1.0 that Discord
+/// guarantees for soundboard volumes.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SoundboardVolume(pub f64);
+
+impl Eq for SoundboardVolume {}
+
+impl Hash for SoundboardVolume {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
 
 /// Minimal amount of information about an affected [role].
 ///
@@ -52,6 +75,15 @@ pub enum AuditLogChangeTypeValue {
 #[non_exhaustive]
 #[serde(rename_all = "snake_case", tag = "key")]
 pub enum AuditLogChange {
+    /// Actions of an Auto Moderation rule were changed.
+    Actions {
+        /// New actions.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<AutoModerationAction>>,
+        /// Old actions.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<AutoModerationAction>>,
+    },
     /// AFK channel ID was changed.
     AfkChannelId {
         /// New ID of the AFK channel.
@@ -249,12 +281,39 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<ImageHash>,
     },
+    /// ID of the custom emoji for a soundboard sound.
+    EmojiId {
+        /// New emoji ID.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Id<EmojiMarker>>,
+        /// Old emoji ID.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Id<EmojiMarker>>,
+    },
+    /// Unicode character of the standard emoji for a soundboard sound.
+    EmojiName {
+        /// New emoji name.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<String>,
+        /// Old emoji name.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<String>,
+    },
     /// Whether emoticons are enabled.
     EnableEmoticons {
         /// Whether emoticons are now enabled.
         #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
         new: Option<bool>,
         /// Whether emoticons were enabled.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<bool>,
+    },
+    /// Whether an Auto Moderation rule is enabled.
+    Enabled {
+        /// New enabled state.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<bool>,
+        /// Old enabled state.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<bool>,
     },
@@ -266,6 +325,33 @@ pub enum AuditLogChange {
         /// Previous state, if any.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<u64>,
+    },
+    /// Event type of an Auto Moderation rule was changed.
+    EventType {
+        /// New event type.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationEventType>,
+        /// Old event type.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationEventType>,
+    },
+    /// Exempt channels of an Auto Moderation rule were changed.
+    ExemptChannels {
+        /// New exempt channels.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<Id<ChannelMarker>>>,
+        /// Old exempt channels.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<Id<ChannelMarker>>>,
+    },
+    /// Exempt roles of an Auto Moderation rule were changed.
+    ExemptRoles {
+        /// New exempt roles.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<Id<RoleMarker>>>,
+        /// Old exempt roles.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<Id<RoleMarker>>>,
     },
     /// Behavior of the expiration of an integration.
     ExpireBehavior {
@@ -581,6 +667,15 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<Id<ChannelMarker>>,
     },
+    /// ID of a soundboard sound.
+    SoundId {
+        /// New sound ID.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Id<SoundMarker>>,
+        /// Old sound ID.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Id<SoundMarker>>,
+    },
     /// Hash of a guild's splash.
     SplashHash {
         /// Old hash of a guild's splash.
@@ -594,10 +689,10 @@ pub enum AuditLogChange {
     Status {
         /// New status.
         #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
-        new: Option<u64>,
+        new: Option<scheduled_event::Status>,
         /// Previous state, if any.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
-        old: Option<u64>,
+        old: Option<scheduled_event::Status>,
     },
     /// ID of guild's system channel.
     SystemChannelId {
@@ -634,6 +729,24 @@ pub enum AuditLogChange {
         /// Old topic.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<String>,
+    },
+    /// Trigger metadata of an Auto Moderation rule was changed.
+    TriggerMetadata {
+        /// New trigger metadata.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationTriggerMetadata>,
+        /// Old trigger metadata.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationTriggerMetadata>,
+    },
+    /// Trigger type of an Auto Moderation rule was changed.
+    TriggerType {
+        /// New trigger type.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<AutoModerationTriggerType>,
+        /// Old trigger type.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<AutoModerationTriggerType>,
     },
     /// Type of a created entity.
     ///
@@ -692,6 +805,15 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<VerificationLevel>,
     },
+    /// Volume of a soundboard sound, from 0 to 1.
+    Volume {
+        /// New volume.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<SoundboardVolume>,
+        /// Old volume.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<SoundboardVolume>,
+    },
     /// Channel ID of a widget.
     WidgetChannelId {
         /// New channel ID.
@@ -739,6 +861,7 @@ impl AuditLogChange {
     /// [`Uses`]: Self::Uses
     pub const fn key(&self) -> Option<AuditLogChangeKey> {
         Some(match self {
+            Self::Actions { .. } => AuditLogChangeKey::Actions,
             Self::AfkChannelId { .. } => AuditLogChangeKey::AfkChannelId,
             Self::AfkTimeout { .. } => AuditLogChangeKey::AfkTimeout,
             Self::Allow { .. } => AuditLogChangeKey::Allow,
@@ -767,8 +890,14 @@ impl AuditLogChange {
             Self::Deny { .. } => AuditLogChangeKey::Deny,
             Self::Description { .. } => AuditLogChangeKey::Description,
             Self::DiscoverySplashHash { .. } => AuditLogChangeKey::DiscoverySplashHash,
+            Self::EmojiId { .. } => AuditLogChangeKey::EmojiId,
+            Self::EmojiName { .. } => AuditLogChangeKey::EmojiName,
             Self::EnableEmoticons { .. } => AuditLogChangeKey::EnableEmoticons,
+            Self::Enabled { .. } => AuditLogChangeKey::Enabled,
             Self::EntityType { .. } => AuditLogChangeKey::EntityType,
+            Self::EventType { .. } => AuditLogChangeKey::EventType,
+            Self::ExemptChannels { .. } => AuditLogChangeKey::ExemptChannels,
+            Self::ExemptRoles { .. } => AuditLogChangeKey::ExemptRoles,
             Self::ExpireBehavior { .. } => AuditLogChangeKey::ExpireBehavior,
             Self::ExpireGracePeriod { .. } => AuditLogChangeKey::ExpireGracePeriod,
             Self::ExplicitContentFilter { .. } => AuditLogChangeKey::ExplicitContentFilter,
@@ -804,18 +933,22 @@ impl AuditLogChange {
             Self::RoleAdded { .. } => AuditLogChangeKey::RoleAdded,
             Self::RoleRemoved { .. } => AuditLogChangeKey::RoleRemoved,
             Self::RulesChannelId { .. } => AuditLogChangeKey::RulesChannelId,
+            Self::SoundId { .. } => AuditLogChangeKey::SoundId,
             Self::SplashHash { .. } => AuditLogChangeKey::SplashHash,
             Self::Status { .. } => AuditLogChangeKey::Status,
             Self::SystemChannelId { .. } => AuditLogChangeKey::SystemChannelId,
             Self::Tags { .. } => AuditLogChangeKey::Tags,
             Self::Temporary { .. } => AuditLogChangeKey::Temporary,
             Self::Topic { .. } => AuditLogChangeKey::Topic,
+            Self::TriggerMetadata { .. } => AuditLogChangeKey::TriggerMetadata,
+            Self::TriggerType { .. } => AuditLogChangeKey::TriggerType,
             Self::Type { .. } => AuditLogChangeKey::Type,
             Self::UnicodeEmoji { .. } => AuditLogChangeKey::UnicodeEmoji,
             Self::UserLimit { .. } => AuditLogChangeKey::UserLimit,
             Self::Uses { .. } => AuditLogChangeKey::Uses,
             Self::VanityUrlCode { .. } => AuditLogChangeKey::VanityUrlCode,
             Self::VerificationLevel { .. } => AuditLogChangeKey::VerificationLevel,
+            Self::Volume { .. } => AuditLogChangeKey::Volume,
             Self::WidgetChannelId { .. } => AuditLogChangeKey::WidgetChannelId,
             Self::WidgetEnabled { .. } => AuditLogChangeKey::WidgetEnabled,
             Self::Other => return None,
@@ -825,8 +958,12 @@ impl AuditLogChange {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::AuditLogChangeKey, AffectedRole, AuditLogChange, AuditLogChangeTypeValue};
-    use crate::{channel::ChannelType, guild::Permissions, id::Id};
+    use super::{super::AuditLogChangeKey, AffectedRole, AuditLogChange, AuditLogChangeTypeValue, SoundboardVolume};
+    use crate::{
+        channel::ChannelType,
+        guild::{Permissions, scheduled_event::Status as ScheduledEventStatus},
+        id::Id,
+    };
     use serde::{Deserialize, Serialize};
     use serde_test::Token;
     use static_assertions::{assert_fields, assert_impl_all};
@@ -851,6 +988,8 @@ mod tests {
     assert_fields!(AuditLogChange::Description: new, old);
     assert_fields!(AuditLogChange::DiscoverySplashHash: new, old);
     assert_fields!(AuditLogChange::EnableEmoticons: new, old);
+    assert_fields!(AuditLogChange::EmojiId: new, old);
+    assert_fields!(AuditLogChange::EmojiName: new, old);
     assert_fields!(AuditLogChange::ExpireBehavior: new);
     assert_fields!(AuditLogChange::ExpireGracePeriod: new);
     assert_fields!(AuditLogChange::ExplicitContentFilter: new, old);
@@ -879,7 +1018,9 @@ mod tests {
     assert_fields!(AuditLogChange::RoleAdded: new);
     assert_fields!(AuditLogChange::RoleRemoved: new);
     assert_fields!(AuditLogChange::RulesChannelId: new, old);
+    assert_fields!(AuditLogChange::SoundId: new, old);
     assert_fields!(AuditLogChange::SplashHash: new, old);
+    assert_fields!(AuditLogChange::Status: new, old);
     assert_fields!(AuditLogChange::SystemChannelId: new, old);
     assert_fields!(AuditLogChange::Temporary: new);
     assert_fields!(AuditLogChange::Topic: new);
@@ -888,6 +1029,7 @@ mod tests {
     assert_fields!(AuditLogChange::UserLimit: new, old);
     assert_fields!(AuditLogChange::VanityUrlCode: new, old);
     assert_fields!(AuditLogChange::VerificationLevel: new, old);
+    assert_fields!(AuditLogChange::Volume: new, old);
     assert_fields!(AuditLogChange::WidgetChannelId: new, old);
     assert_fields!(AuditLogChange::WidgetEnabled: new, old);
     assert_impl_all!(
@@ -914,6 +1056,18 @@ mod tests {
     );
     assert_impl_all!(
         AuditLogChangeTypeValue: Clone,
+        Debug,
+        Deserialize<'static>,
+        Eq,
+        Hash,
+        PartialEq,
+        Send,
+        Serialize,
+        Sync
+    );
+    assert_impl_all!(
+        SoundboardVolume: Clone,
+        Copy,
         Debug,
         Deserialize<'static>,
         Eq,
@@ -1028,6 +1182,150 @@ mod tests {
                 Token::String("new_value"),
                 Token::Some,
                 Token::Str("discord"),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn status() {
+        let value = AuditLogChange::Status {
+            new: Some(ScheduledEventStatus::Active),
+            old: Some(ScheduledEventStatus::Scheduled),
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::Status), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("status"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::U8(u8::from(ScheduledEventStatus::Active)),
+                Token::String("old_value"),
+                Token::Some,
+                Token::U8(u8::from(ScheduledEventStatus::Scheduled)),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn emoji_id() {
+        let value = AuditLogChange::EmojiId {
+            new: Some(Id::new(1)),
+            old: None,
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::EmojiId), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("emoji_id"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::NewtypeStruct { name: "Id" },
+                Token::String("1"),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn emoji_name() {
+        let value = AuditLogChange::EmojiName {
+            new: Some("🔔".to_owned()),
+            old: None,
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::EmojiName), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("emoji_name"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::Str("🔔"),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn sound_id() {
+        let value = AuditLogChange::SoundId {
+            new: Some(Id::new(1)),
+            old: None,
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::SoundId), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("sound_id"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::NewtypeStruct { name: "Id" },
+                Token::String("1"),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn volume() {
+        let value = AuditLogChange::Volume {
+            new: Some(SoundboardVolume(0.5)),
+            old: Some(SoundboardVolume(1.0)),
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::Volume), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("volume"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::NewtypeStruct {
+                    name: "SoundboardVolume",
+                },
+                Token::F64(0.5),
+                Token::String("old_value"),
+                Token::Some,
+                Token::NewtypeStruct {
+                    name: "SoundboardVolume",
+                },
+                Token::F64(1.0),
                 Token::StructEnd,
             ],
         );
