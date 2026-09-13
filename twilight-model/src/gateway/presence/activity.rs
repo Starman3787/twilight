@@ -9,7 +9,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Activity {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Discord sends a literal `0` here for some activities; read as `None`.
+    #[serde(
+        default,
+        deserialize_with = "crate::util::zero_id::zero_id_as_none",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub application_id: Option<Id<ApplicationMarker>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assets: Option<ActivityAssets>,

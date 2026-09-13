@@ -33,6 +33,10 @@ pub struct AuditLogEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
     /// ID of the target entity.
+    ///
+    /// Discord sends a literal `0` here for invite deletes; that is read as
+    /// `None` rather than rejecting the whole event.
+    #[serde(default, deserialize_with = "crate::util::zero_id::zero_id_as_none")]
     pub target_id: Option<Id<GenericMarker>>,
     /// ID of the [user] that performed the action.
     ///

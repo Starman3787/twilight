@@ -4,6 +4,7 @@ pub mod datetime;
 pub mod hex_color;
 pub mod image_hash;
 pub(crate) mod mustbe;
+pub(crate) mod zero_id;
 
 pub use self::{datetime::Timestamp, hex_color::HexColor, image_hash::ImageHash};
 
