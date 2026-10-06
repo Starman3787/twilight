@@ -18,13 +18,19 @@ use crate::{
         Id,
         marker::{
             ApplicationMarker, ChannelMarker, EmojiMarker, GenericMarker, GuildMarker, RoleMarker,
-            SoundMarker, UserMarker,
+            SoundMarker, TagMarker, UserMarker,
         },
     },
     util::{ImageHash, Timestamp},
 };
-use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use serde::{
+    Deserialize, Serialize,
+    de::{Deserializer, Error as DeError, IgnoredAny, MapAccess, SeqAccess, Visitor},
+};
+use std::{
+    fmt::{Formatter, Result as FmtResult},
+    hash::{Hash, Hasher},
+};
 
 /// Volume of a soundboard sound, from 0 to 1.
 ///
@@ -66,6 +72,78 @@ pub enum AuditLogChangeTypeValue {
     Unsigned(u64),
     /// Value is a string.
     String(String),
+}
+
+/// Visitor reading one side of an [`AuditLogChange::Flags`] change.
+struct FlagsVisitor;
+
+impl<'de> Visitor<'de> for FlagsVisitor {
+    type Value = Option<u64>;
+
+    fn expecting(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str("an optional bitfield as an integer or string")
+    }
+
+    fn visit_none<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_unit<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+
+    fn visit_u64<E: DeError>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(Some(value))
+    }
+
+    fn visit_i64<E: DeError>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(u64::try_from(value).ok())
+    }
+
+    fn visit_str<E: DeError>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(value.parse().ok())
+    }
+
+    fn visit_bool<E: DeError>(self, _: bool) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_f64<E: DeError>(self, _: f64) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        while seq.next_element::<IgnoredAny>()?.is_some() {}
+
+        Ok(None)
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+
+        Ok(None)
+    }
+}
+
+/// Deserialise one side of an [`AuditLogChange::Flags`] change without ever
+/// failing on the shape of the value.
+///
+/// The `flags` key is shared by every audit log target that has a flags
+/// bitfield (channels, threads, members, roles, invites, ...) and Discord does
+/// not document the value per target. A change that fails to deserialise takes
+/// the whole [`AuditLogEntry`] with it, so every other change in the entry
+/// would be lost over a value that is only informational. An integer or a
+/// string of digits (the form Discord uses for its larger bitfields) is read
+/// as the bitfield; anything else is read as `None`, as if that side of the
+/// change were absent.
+///
+/// [`AuditLogEntry`]: super::AuditLogEntry
+fn flags_or_none<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<u64>, D::Error> {
+    deserializer.deserialize_option(FlagsVisitor)
 }
 
 /// Individual change within an [`AuditLogEntry`].
@@ -118,6 +196,15 @@ pub enum AuditLogChange {
         new: Option<Id<ApplicationMarker>>,
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<Id<ApplicationMarker>>,
+    },
+    /// Tags applied to a thread in a forum or media channel.
+    AppliedTags {
+        /// New set of applied tags.
+        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        new: Option<Vec<Id<TagMarker>>>,
+        /// Old set of applied tags.
+        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        old: Option<Vec<Id<TagMarker>>>,
     },
     /// Thread is now archived/unarchived.
     Archived {
@@ -379,6 +466,35 @@ pub enum AuditLogChange {
         /// Old explicit content filter level.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<ExplicitContentFilter>,
+    },
+    /// Flags of an entity such as a channel, thread, member, role or invite.
+    ///
+    /// The value is the raw bitfield because its meaning depends on the
+    /// entity: a thread's is a [`ChannelFlags`] and a member's is a
+    /// [`MemberFlags`], for example.
+    ///
+    /// A value that is not a bitfield is read as `None` rather than failing
+    /// the whole entry.
+    ///
+    /// [`ChannelFlags`]: crate::channel::ChannelFlags
+    /// [`MemberFlags`]: crate::guild::MemberFlags
+    Flags {
+        /// New flags.
+        #[serde(
+            default,
+            deserialize_with = "flags_or_none",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<u64>,
+        /// Old flags.
+        #[serde(
+            default,
+            deserialize_with = "flags_or_none",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<u64>,
     },
     /// Format type of a sticker.
     FormatType {
@@ -866,6 +982,7 @@ impl AuditLogChange {
             Self::AfkTimeout { .. } => AuditLogChangeKey::AfkTimeout,
             Self::Allow { .. } => AuditLogChangeKey::Allow,
             Self::ApplicationId { .. } => AuditLogChangeKey::ApplicationId,
+            Self::AppliedTags { .. } => AuditLogChangeKey::AppliedTags,
             Self::Archived { .. } => AuditLogChangeKey::Archived,
             Self::Asset { .. } => AuditLogChangeKey::Asset,
             Self::AutoArchiveDuration { .. } => AuditLogChangeKey::AutoArchiveDuration,
@@ -901,6 +1018,7 @@ impl AuditLogChange {
             Self::ExpireBehavior { .. } => AuditLogChangeKey::ExpireBehavior,
             Self::ExpireGracePeriod { .. } => AuditLogChangeKey::ExpireGracePeriod,
             Self::ExplicitContentFilter { .. } => AuditLogChangeKey::ExplicitContentFilter,
+            Self::Flags { .. } => AuditLogChangeKey::Flags,
             Self::FormatType { .. } => AuditLogChangeKey::FormatType,
             Self::GuildId { .. } => AuditLogChangeKey::GuildId,
             Self::Hoist { .. } => AuditLogChangeKey::Hoist,
@@ -958,7 +1076,10 @@ impl AuditLogChange {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::AuditLogChangeKey, AffectedRole, AuditLogChange, AuditLogChangeTypeValue, SoundboardVolume};
+    use super::{
+        super::{AuditLogChangeKey, AuditLogEntry, AuditLogEventType},
+        AffectedRole, AuditLogChange, AuditLogChangeTypeValue, SoundboardVolume,
+    };
     use crate::{
         channel::ChannelType,
         guild::{Permissions, scheduled_event::Status as ScheduledEventStatus},
@@ -974,6 +1095,7 @@ mod tests {
     assert_fields!(AuditLogChange::AfkTimeout: new, old);
     assert_fields!(AuditLogChange::Allow: new);
     assert_fields!(AuditLogChange::ApplicationId: new);
+    assert_fields!(AuditLogChange::AppliedTags: new, old);
     assert_fields!(AuditLogChange::AvatarHash: new, old);
     assert_fields!(AuditLogChange::BannerHash: new, old);
     assert_fields!(AuditLogChange::Bitrate: new, old);
@@ -993,6 +1115,7 @@ mod tests {
     assert_fields!(AuditLogChange::ExpireBehavior: new);
     assert_fields!(AuditLogChange::ExpireGracePeriod: new);
     assert_fields!(AuditLogChange::ExplicitContentFilter: new, old);
+    assert_fields!(AuditLogChange::Flags: new, old);
     assert_fields!(AuditLogChange::Hoist: new, old);
     assert_fields!(AuditLogChange::IconHash: new, old);
     assert_fields!(AuditLogChange::Id: new);
@@ -1328,6 +1451,396 @@ mod tests {
                 Token::F64(1.0),
                 Token::StructEnd,
             ],
+        );
+    }
+
+    #[test]
+    fn applied_tags() {
+        let value = AuditLogChange::AppliedTags {
+            new: Some(Vec::from([Id::new(1), Id::new(2)])),
+            old: Some(Vec::from([Id::new(1)])),
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::AppliedTags), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("applied_tags"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::Seq { len: Some(2) },
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("1"),
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("2"),
+                Token::SeqEnd,
+                Token::String("old_value"),
+                Token::Some,
+                Token::Seq { len: Some(1) },
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("1"),
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn applied_tags_new_only() {
+        let value = AuditLogChange::AppliedTags {
+            new: Some(Vec::from([Id::new(1)])),
+            old: None,
+        };
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("applied_tags"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::Seq { len: Some(1) },
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("1"),
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn applied_tags_old_only() {
+        let value = AuditLogChange::AppliedTags {
+            new: None,
+            old: Some(Vec::from([Id::new(1)])),
+        };
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("applied_tags"),
+                Token::String("old_value"),
+                Token::Some,
+                Token::Seq { len: Some(1) },
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("1"),
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    /// Removing a thread's last tag leaves an empty list, which must stay
+    /// distinguishable from the side being absent.
+    #[test]
+    fn applied_tags_empty() {
+        let value = AuditLogChange::AppliedTags {
+            new: Some(Vec::new()),
+            old: Some(Vec::from([Id::new(1)])),
+        };
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("applied_tags"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::Seq { len: Some(0) },
+                Token::SeqEnd,
+                Token::String("old_value"),
+                Token::Some,
+                Token::Seq { len: Some(1) },
+                Token::NewtypeStruct { name: "Id" },
+                Token::Str("1"),
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    /// The JSON form of the change, including a `null` side.
+    #[test]
+    fn applied_tags_json() {
+        let input = r#"{"key":"applied_tags","old_value":["1"],"new_value":["1","2"]}"#;
+        let value = AuditLogChange::AppliedTags {
+            new: Some(Vec::from([Id::new(1), Id::new(2)])),
+            old: Some(Vec::from([Id::new(1)])),
+        };
+        assert_eq!(value, serde_json::from_str(input).unwrap());
+        assert_eq!(
+            r#"{"key":"applied_tags","new_value":["1","2"],"old_value":["1"]}"#,
+            serde_json::to_string(&value).unwrap(),
+        );
+
+        let value = AuditLogChange::AppliedTags {
+            new: Some(Vec::new()),
+            old: None,
+        };
+        assert_eq!(
+            value,
+            serde_json::from_str(r#"{"key":"applied_tags","new_value":[]}"#).unwrap(),
+        );
+        assert_eq!(
+            value,
+            serde_json::from_str(r#"{"key":"applied_tags","old_value":null,"new_value":[]}"#)
+                .unwrap(),
+        );
+        assert_eq!(
+            r#"{"key":"applied_tags","new_value":[]}"#,
+            serde_json::to_string(&value).unwrap(),
+        );
+    }
+
+    #[test]
+    fn flags() {
+        let value = AuditLogChange::Flags {
+            new: Some(2),
+            old: Some(0),
+        };
+
+        assert_eq!(Some(AuditLogChangeKey::Flags), value.key());
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 3,
+                },
+                Token::String("key"),
+                Token::String("flags"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::U64(2),
+                Token::String("old_value"),
+                Token::Some,
+                Token::U64(0),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn flags_new_only() {
+        let value = AuditLogChange::Flags {
+            new: Some(2),
+            old: None,
+        };
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("flags"),
+                Token::String("new_value"),
+                Token::Some,
+                Token::U64(2),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    #[test]
+    fn flags_old_only() {
+        let value = AuditLogChange::Flags {
+            new: None,
+            old: Some(2),
+        };
+
+        serde_test::assert_tokens(
+            &value,
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("flags"),
+                Token::String("old_value"),
+                Token::Some,
+                Token::U64(2),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    /// Some deserialisers hand every integer that fits over as signed.
+    #[test]
+    fn flags_signed() {
+        serde_test::assert_de_tokens(
+            &AuditLogChange::Flags {
+                new: Some(2),
+                old: None,
+            },
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("flags"),
+                Token::String("new_value"),
+                Token::I64(2),
+                Token::StructEnd,
+            ],
+        );
+    }
+
+    /// The JSON form of the change, including a `null` side.
+    #[test]
+    fn flags_json() {
+        let value = AuditLogChange::Flags {
+            new: Some(2),
+            old: Some(0),
+        };
+        assert_eq!(
+            value,
+            serde_json::from_str(r#"{"key":"flags","old_value":0,"new_value":2}"#).unwrap(),
+        );
+        assert_eq!(
+            r#"{"key":"flags","new_value":2,"old_value":0}"#,
+            serde_json::to_string(&value).unwrap(),
+        );
+
+        let value = AuditLogChange::Flags {
+            new: Some(2),
+            old: None,
+        };
+        assert_eq!(
+            value,
+            serde_json::from_str(r#"{"key":"flags","new_value":2}"#).unwrap(),
+        );
+        assert_eq!(
+            value,
+            serde_json::from_str(r#"{"key":"flags","old_value":null,"new_value":2}"#).unwrap(),
+        );
+        assert_eq!(
+            r#"{"key":"flags","new_value":2}"#,
+            serde_json::to_string(&value).unwrap(),
+        );
+    }
+
+    /// The `flags` key is shared between targets, so a value of an unexpected
+    /// shape must cost that one value and not the whole entry.
+    #[test]
+    fn flags_unexpected_value_is_none() {
+        let string: AuditLogChange =
+            serde_json::from_str(r#"{"key":"flags","old_value":"0","new_value":"16"}"#).unwrap();
+        assert_eq!(
+            AuditLogChange::Flags {
+                new: Some(16),
+                old: Some(0),
+            },
+            string,
+        );
+
+        for unexpected in [
+            r#""not a number""#,
+            "-1",
+            "1.5",
+            "true",
+            "[1,2]",
+            r#"{"value":1}"#,
+        ] {
+            let input = format!(r#"{{"key":"flags","old_value":{unexpected},"new_value":2}}"#);
+
+            assert_eq!(
+                AuditLogChange::Flags {
+                    new: Some(2),
+                    old: None,
+                },
+                serde_json::from_str(&input).unwrap(),
+                "{input}",
+            );
+        }
+    }
+
+    /// Keys without a variant must keep deserialising to [`Other`] instead of
+    /// failing the entry.
+    ///
+    /// [`Other`]: AuditLogChange::Other
+    #[test]
+    fn unknown_key_is_other() {
+        let value: AuditLogChange = serde_json::from_str(
+            r#"{"key":"available_tags","old_value":[],"new_value":[{"id":"1","name":"tag"}]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(AuditLogChange::Other, value);
+        assert_eq!(None, value.key());
+    }
+
+    /// A forum post being tagged and pinned, as received in
+    /// `GUILD_AUDIT_LOG_ENTRY_CREATE`.
+    #[test]
+    fn thread_update_entry() {
+        let input = r#"{
+            "action_type": 111,
+            "changes": [
+                {
+                    "key": "applied_tags",
+                    "old_value": ["1012345678901234501"],
+                    "new_value": ["1012345678901234501", "1012345678901234502"]
+                },
+                {
+                    "key": "flags",
+                    "old_value": 0,
+                    "new_value": 2
+                },
+                {
+                    "key": "some_future_key",
+                    "new_value": {"nested": true}
+                }
+            ],
+            "guild_id": "1012345678901234503",
+            "id": "1012345678901234504",
+            "target_id": "1012345678901234505",
+            "user_id": "1012345678901234506"
+        }"#;
+
+        let entry: AuditLogEntry = serde_json::from_str(input).unwrap();
+
+        assert_eq!(AuditLogEventType::ThreadUpdate, entry.action_type);
+        assert_eq!(
+            Vec::from([
+                AuditLogChange::AppliedTags {
+                    new: Some(Vec::from([
+                        Id::new(1_012_345_678_901_234_501),
+                        Id::new(1_012_345_678_901_234_502),
+                    ])),
+                    old: Some(Vec::from([Id::new(1_012_345_678_901_234_501)])),
+                },
+                AuditLogChange::Flags {
+                    new: Some(2),
+                    old: Some(0),
+                },
+                AuditLogChange::Other,
+            ]),
+            entry.changes,
         );
     }
 }
