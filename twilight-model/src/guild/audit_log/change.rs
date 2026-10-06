@@ -146,6 +146,193 @@ fn flags_or_none<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<u6
     deserializer.deserialize_option(FlagsVisitor)
 }
 
+/// Visitor reading one tag of an [`AuditLogChange::AppliedTags`] side.
+///
+/// A value that is not a usable ID is `None`; it is never an error.
+struct AppliedTagVisitor;
+
+impl<'de> Visitor<'de> for AppliedTagVisitor {
+    type Value = Option<Id<TagMarker>>;
+
+    fn expecting(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str("a tag ID as an integer or string")
+    }
+
+    fn visit_none<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_unit<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+
+    fn visit_newtype_struct<D: Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+
+    fn visit_u64<E: DeError>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(Id::new_checked(value))
+    }
+
+    fn visit_i64<E: DeError>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(u64::try_from(value).ok().and_then(Id::new_checked))
+    }
+
+    fn visit_u128<E: DeError>(self, _: u128) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_i128<E: DeError>(self, _: i128) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_str<E: DeError>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(value.parse().ok().and_then(Id::new_checked))
+    }
+
+    fn visit_bytes<E: DeError>(self, _: &[u8]) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_bool<E: DeError>(self, _: bool) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_f64<E: DeError>(self, _: f64) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        while seq.next_element::<IgnoredAny>()?.is_some() {}
+
+        Ok(None)
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+
+        Ok(None)
+    }
+}
+
+/// One tag of an [`AuditLogChange::AppliedTags`] side, or `None` if the value
+/// in its place is not a usable ID.
+struct AppliedTag(Option<Id<TagMarker>>);
+
+impl<'de> Deserialize<'de> for AppliedTag {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_any(AppliedTagVisitor).map(Self)
+    }
+}
+
+/// Visitor reading one side of an [`AuditLogChange::AppliedTags`] change.
+struct AppliedTagsVisitor;
+
+impl<'de> Visitor<'de> for AppliedTagsVisitor {
+    type Value = Option<Vec<Id<TagMarker>>>;
+
+    fn expecting(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str("an optional list of tag IDs")
+    }
+
+    fn visit_none<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_unit<E: DeError>(self) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(self)
+    }
+
+    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+        let mut tags = Vec::new();
+        let mut skipped = false;
+
+        while let Some(AppliedTag(tag)) = seq.next_element()? {
+            match tag {
+                Some(tag) => tags.push(tag),
+                None => skipped = true,
+            }
+        }
+
+        // A list in which nothing is an ID is not a list of tags at all.
+        // Reading it as empty would report every tag as removed.
+        Ok(if tags.is_empty() && skipped {
+            None
+        } else {
+            Some(tags)
+        })
+    }
+
+    fn visit_u64<E: DeError>(self, _: u64) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_i64<E: DeError>(self, _: i64) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_u128<E: DeError>(self, _: u128) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_i128<E: DeError>(self, _: i128) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_str<E: DeError>(self, _: &str) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_bytes<E: DeError>(self, _: &[u8]) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_bool<E: DeError>(self, _: bool) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_f64<E: DeError>(self, _: f64) -> Result<Self::Value, E> {
+        Ok(None)
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        while map.next_entry::<IgnoredAny, IgnoredAny>()?.is_some() {}
+
+        Ok(None)
+    }
+}
+
+/// Deserialise one side of an [`AuditLogChange::AppliedTags`] change without
+/// ever failing on the shape of the value.
+///
+/// A change that fails to deserialise takes the whole [`AuditLogEntry`] with
+/// it, and with it every other change in the entry, while the same key without
+/// a variant only degrades to [`AuditLogChange::Other`]. The shape of this
+/// change is not documented by Discord, so nothing about it is relied on: a
+/// value that is not a list is read as `None`, as if that side of the change
+/// were absent, and within a list anything that is not a usable ID (`null`, a
+/// zero, text, an object) is left out so that the tags beside it are kept. A
+/// list holding nothing but such values is read as `None` too, rather than as
+/// a thread with no tags.
+///
+/// [`AuditLogEntry`]: super::AuditLogEntry
+fn applied_tags_or_none<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<Id<TagMarker>>>, D::Error> {
+    deserializer.deserialize_option(AppliedTagsVisitor)
+}
+
 /// Individual change within an [`AuditLogEntry`].
 ///
 /// [`AuditLogEntry`]: super::AuditLogEntry
@@ -198,12 +385,26 @@ pub enum AuditLogChange {
         old: Option<Id<ApplicationMarker>>,
     },
     /// Tags applied to a thread in a forum or media channel.
+    ///
+    /// A side that is not a list of tag IDs is read as `None`, and a value in
+    /// a list that is not a tag ID is left out, rather than failing the whole
+    /// entry.
     AppliedTags {
         /// New set of applied tags.
-        #[serde(rename = "new_value", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "applied_tags_or_none",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
         new: Option<Vec<Id<TagMarker>>>,
         /// Old set of applied tags.
-        #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            deserialize_with = "applied_tags_or_none",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
         old: Option<Vec<Id<TagMarker>>>,
     },
     /// Thread is now archived/unarchived.
@@ -1608,6 +1809,175 @@ mod tests {
         assert_eq!(
             r#"{"key":"applied_tags","new_value":[]}"#,
             serde_json::to_string(&value).unwrap(),
+        );
+    }
+
+    /// A side that is not a list of tag IDs must cost that side and not the
+    /// whole entry.
+    #[test]
+    fn applied_tags_unexpected_side_is_none() {
+        for unexpected in [
+            "[null]",
+            r#"[""]"#,
+            r#"["0"]"#,
+            "[0]",
+            r#"["abc"]"#,
+            "[1.5]",
+            "[-1]",
+            r#""123""#,
+            "123",
+            "{}",
+            r#"[{"id":"1"}]"#,
+            r#"["18446744073709551616"]"#,
+            "[18446744073709551616]",
+            "true",
+            "1.5",
+            "[[1]]",
+        ] {
+            let expected = AuditLogChange::AppliedTags {
+                new: Some(Vec::from([Id::new(1)])),
+                old: None,
+            };
+
+            let input =
+                format!(r#"{{"key":"applied_tags","old_value":{unexpected},"new_value":["1"]}}"#);
+            assert_eq!(expected, serde_json::from_str(&input).unwrap(), "{input}");
+
+            let expected = AuditLogChange::AppliedTags {
+                new: None,
+                old: Some(Vec::from([Id::new(1)])),
+            };
+
+            let input =
+                format!(r#"{{"key":"applied_tags","old_value":["1"],"new_value":{unexpected}}}"#);
+            assert_eq!(expected, serde_json::from_str(&input).unwrap(), "{input}");
+        }
+
+        assert_eq!(
+            AuditLogChange::AppliedTags {
+                new: None,
+                old: None,
+            },
+            serde_json::from_str(r#"{"key":"applied_tags","old_value":{},"new_value":[null]}"#)
+                .unwrap(),
+        );
+    }
+
+    /// A value in a list that is not a tag ID is left out and the tags beside
+    /// it are kept.
+    #[test]
+    fn applied_tags_unexpected_element_is_skipped() {
+        let value: AuditLogChange = serde_json::from_str(
+            r#"{
+                "key": "applied_tags",
+                "old_value": ["1", null, "abc", 0, "0", "", -1, 1.5, {"id": "9"}, [9], true, 2],
+                "new_value": [3, "18446744073709551616", 18446744073709551616, "4"]
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            AuditLogChange::AppliedTags {
+                new: Some(Vec::from([Id::new(3), Id::new(4)])),
+                old: Some(Vec::from([Id::new(1), Id::new(2)])),
+            },
+            value,
+        );
+    }
+
+    /// A malformed `applied_tags` change must not take the changes beside it,
+    /// or the entry, with it.
+    #[test]
+    fn thread_update_entry_with_malformed_applied_tags() {
+        let input = r#"{
+            "action_type": 111,
+            "changes": [
+                {
+                    "key": "name",
+                    "old_value": "before",
+                    "new_value": "after"
+                },
+                {
+                    "key": "applied_tags",
+                    "old_value": [{"id": "1012345678901234501"}],
+                    "new_value": "1012345678901234502"
+                },
+                {
+                    "key": "applied_tags",
+                    "old_value": [null, "1012345678901234501"],
+                    "new_value": {}
+                },
+                {
+                    "key": "locked",
+                    "old_value": false,
+                    "new_value": true
+                },
+                {
+                    "key": "flags",
+                    "old_value": 0,
+                    "new_value": 2
+                }
+            ],
+            "guild_id": "1012345678901234503",
+            "id": "1012345678901234504",
+            "target_id": "1012345678901234505",
+            "user_id": "1012345678901234506"
+        }"#;
+
+        let entry: AuditLogEntry = serde_json::from_str(input).unwrap();
+
+        assert_eq!(AuditLogEventType::ThreadUpdate, entry.action_type);
+        assert_eq!(Id::new(1_012_345_678_901_234_504), entry.id);
+        assert_eq!(
+            Vec::from([
+                AuditLogChange::Name {
+                    new: Some("after".to_owned()),
+                    old: Some("before".to_owned()),
+                },
+                AuditLogChange::AppliedTags {
+                    new: None,
+                    old: None,
+                },
+                AuditLogChange::AppliedTags {
+                    new: None,
+                    old: Some(Vec::from([Id::new(1_012_345_678_901_234_501)])),
+                },
+                AuditLogChange::Locked {
+                    new: Some(true),
+                    old: Some(false),
+                },
+                AuditLogChange::Flags {
+                    new: Some(2),
+                    old: Some(0),
+                },
+            ]),
+            entry.changes,
+        );
+    }
+
+    /// Some deserialisers hand every integer that fits over as signed.
+    #[test]
+    fn applied_tags_signed() {
+        serde_test::assert_de_tokens(
+            &AuditLogChange::AppliedTags {
+                new: Some(Vec::from([Id::new(1), Id::new(2)])),
+                old: None,
+            },
+            &[
+                Token::Struct {
+                    name: "AuditLogChange",
+                    len: 2,
+                },
+                Token::String("key"),
+                Token::String("applied_tags"),
+                Token::String("new_value"),
+                Token::Seq { len: Some(3) },
+                Token::I64(1),
+                Token::I64(-1),
+                Token::U64(2),
+                Token::SeqEnd,
+                Token::StructEnd,
+            ],
         );
     }
 
