@@ -21,6 +21,8 @@ pub enum AuditLogChangeKey {
     Allow,
     /// ID of an application.
     ApplicationId,
+    /// Tags applied to a thread in a forum or media channel.
+    AppliedTags,
     /// Thread was archived or unarchived.
     Archived,
     /// Asset of a sticker.
@@ -81,6 +83,8 @@ pub enum AuditLogChangeKey {
     ExpireGracePeriod,
     /// Explicit content filter level of a guild.
     ExplicitContentFilter,
+    /// Flags of an entity such as a channel, thread, member, role or invite.
+    Flags,
     /// Format type of a sticker.
     FormatType,
     /// Guild that a sticker is in.
@@ -210,6 +214,7 @@ impl AuditLogChangeKey {
             Self::AfkTimeout => "afk_timeout",
             Self::Allow => "allow",
             Self::ApplicationId => "application_id",
+            Self::AppliedTags => "applied_tags",
             Self::Archived => "archived",
             Self::Asset => "asset",
             Self::AutoArchiveDuration => "auto_archive_duration",
@@ -239,6 +244,7 @@ impl AuditLogChangeKey {
             Self::ExpireBehavior => "expire_behavior",
             Self::ExpireGracePeriod => "expire_grace_period",
             Self::ExplicitContentFilter => "explicit_content_filter",
+            Self::Flags => "flags",
             Self::FormatType => "format_type",
             Self::GuildId => "guild_id",
             Self::Hoist => "hoist",
@@ -331,6 +337,7 @@ mod tests {
         assert_eq!("afk_timeout", AuditLogChangeKey::AfkTimeout.name());
         assert_eq!("allow", AuditLogChangeKey::Allow.name());
         assert_eq!("application_id", AuditLogChangeKey::ApplicationId.name());
+        assert_eq!("applied_tags", AuditLogChangeKey::AppliedTags.name());
         assert_eq!("avatar_hash", AuditLogChangeKey::AvatarHash.name());
         assert_eq!("banner_hash", AuditLogChangeKey::BannerHash.name());
         assert_eq!("bitrate", AuditLogChangeKey::Bitrate.name());
@@ -375,6 +382,7 @@ mod tests {
             AuditLogChangeKey::ExemptChannels.name()
         );
         assert_eq!("exempt_roles", AuditLogChangeKey::ExemptRoles.name());
+        assert_eq!("flags", AuditLogChangeKey::Flags.name());
         assert_eq!("hoist", AuditLogChangeKey::Hoist.name());
         assert_eq!("icon_hash", AuditLogChangeKey::IconHash.name());
         assert_eq!("id", AuditLogChangeKey::Id.name());
@@ -478,6 +486,13 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "application_id",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::AppliedTags,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "applied_tags",
             }],
         );
         serde_test::assert_tokens(
@@ -639,6 +654,13 @@ mod tests {
             &[Token::UnitVariant {
                 name: "AuditLogChangeKey",
                 variant: "explicit_content_filter",
+            }],
+        );
+        serde_test::assert_tokens(
+            &AuditLogChangeKey::Flags,
+            &[Token::UnitVariant {
+                name: "AuditLogChangeKey",
+                variant: "flags",
             }],
         );
         serde_test::assert_tokens(
