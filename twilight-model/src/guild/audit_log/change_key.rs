@@ -33,6 +33,8 @@ pub enum AuditLogChangeKey {
     AutoArchiveDuration,
     /// Availability of a sticker.
     Available,
+    /// Tags that can be applied to posts in a forum or media channel.
+    AvailableTags,
     /// Hash of an avatar.
     AvatarHash,
     /// Hash of a guild banner.
@@ -53,8 +55,17 @@ pub enum AuditLogChangeKey {
     Deaf,
     /// Default auto archive duration for new threads.
     DefaultAutoArchiveDuration,
+    /// Default layout of posts in a forum channel.
+    DefaultForumLayout,
     /// Default message notification level for a guild.
     DefaultMessageNotifications,
+    /// Emoji shown in the add reaction button of posts in a forum or media
+    /// channel.
+    DefaultReactionEmoji,
+    /// Default sort order of posts in a forum or media channel.
+    DefaultSortOrder,
+    /// Slowmode new posts in a forum or media channel start with.
+    DefaultThreadRateLimitPerUser,
     /// Denied permissions of a permission overwrite target.
     Deny,
     /// Description of a guild.
@@ -219,6 +230,7 @@ impl AuditLogChangeKey {
             Self::Asset => "asset",
             Self::AutoArchiveDuration => "auto_archive_duration",
             Self::Available => "available",
+            Self::AvailableTags => "available_tags",
             Self::AvatarHash => "avatar_hash",
             Self::BannerHash => "banner_hash",
             Self::Bitrate => "bitrate",
@@ -229,7 +241,11 @@ impl AuditLogChangeKey {
             Self::CommunicationDisabledUntil => "communication_disabled_until",
             Self::Deaf => "deaf",
             Self::DefaultAutoArchiveDuration => "default_auto_archive_duration",
+            Self::DefaultForumLayout => "default_forum_layout",
             Self::DefaultMessageNotifications => "default_message_notifications",
+            Self::DefaultReactionEmoji => "default_reaction_emoji",
+            Self::DefaultSortOrder => "default_sort_order",
+            Self::DefaultThreadRateLimitPerUser => "default_thread_rate_limit_per_user",
             Self::Deny => "deny",
             Self::Description => "description",
             Self::DiscoverySplashHash => "discovery_splash_hash",
@@ -330,6 +346,7 @@ mod tests {
         Sync
     );
 
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn name() {
         assert_eq!("actions", AuditLogChangeKey::Actions.name());
@@ -338,6 +355,23 @@ mod tests {
         assert_eq!("allow", AuditLogChangeKey::Allow.name());
         assert_eq!("application_id", AuditLogChangeKey::ApplicationId.name());
         assert_eq!("applied_tags", AuditLogChangeKey::AppliedTags.name());
+        assert_eq!("available_tags", AuditLogChangeKey::AvailableTags.name());
+        assert_eq!(
+            "default_forum_layout",
+            AuditLogChangeKey::DefaultForumLayout.name()
+        );
+        assert_eq!(
+            "default_reaction_emoji",
+            AuditLogChangeKey::DefaultReactionEmoji.name()
+        );
+        assert_eq!(
+            "default_sort_order",
+            AuditLogChangeKey::DefaultSortOrder.name()
+        );
+        assert_eq!(
+            "default_thread_rate_limit_per_user",
+            AuditLogChangeKey::DefaultThreadRateLimitPerUser.name()
+        );
         assert_eq!("avatar_hash", AuditLogChangeKey::AvatarHash.name());
         assert_eq!("banner_hash", AuditLogChangeKey::BannerHash.name());
         assert_eq!("bitrate", AuditLogChangeKey::Bitrate.name());
@@ -377,10 +411,7 @@ mod tests {
             AuditLogChangeKey::ExplicitContentFilter.name()
         );
         assert_eq!("event_type", AuditLogChangeKey::EventType.name());
-        assert_eq!(
-            "exempt_channels",
-            AuditLogChangeKey::ExemptChannels.name()
-        );
+        assert_eq!("exempt_channels", AuditLogChangeKey::ExemptChannels.name());
         assert_eq!("exempt_roles", AuditLogChangeKey::ExemptRoles.name());
         assert_eq!("flags", AuditLogChangeKey::Flags.name());
         assert_eq!("hoist", AuditLogChangeKey::Hoist.name());
