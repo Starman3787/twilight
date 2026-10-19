@@ -82,6 +82,29 @@ enum OrIgnored<T> {
     Ignored(IgnoredAny),
 }
 
+/// Deserialise a forum's list of tags leniently, tag by tag: one Discord sends
+/// in a shape [`ForumTag`] does not expect is left out, and the rest kept,
+/// rather than the whole list being dropped. A side that is not a list at all
+/// is read as `None`, as [`lenient`] reads it.
+fn lenient_tags<'de, D>(deserializer: D) -> Result<Option<Vec<ForumTag>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(
+        match Option::<OrIgnored<Vec<OrIgnored<ForumTag>>>>::deserialize(deserializer)? {
+            Some(OrIgnored::Value(tags)) => Some(
+                tags.into_iter()
+                    .filter_map(|tag| match tag {
+                        OrIgnored::Value(tag) => Some(tag),
+                        OrIgnored::Ignored(_) => None,
+                    })
+                    .collect(),
+            ),
+            Some(OrIgnored::Ignored(_)) | None => None,
+        },
+    )
+}
+
 /// Deserialise one side of a forum change leniently: see [`OrIgnored`].
 fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
@@ -481,7 +504,7 @@ pub enum AuditLogChange {
         /// New value.
         #[serde(
             default,
-            deserialize_with = "lenient",
+            deserialize_with = "lenient_tags",
             rename = "new_value",
             skip_serializing_if = "Option::is_none"
         )]
@@ -489,7 +512,7 @@ pub enum AuditLogChange {
         /// Old value.
         #[serde(
             default,
-            deserialize_with = "lenient",
+            deserialize_with = "lenient_tags",
             rename = "old_value",
             skip_serializing_if = "Option::is_none"
         )]
@@ -2454,7 +2477,7 @@ mod tests {
     fn forum_keys_unexpected_side_is_none() {
         for (key, unexpected) in [
             ("available_tags", r#"{"id":"1"}"#),
-            ("available_tags", r#"[{"id":"x","name":"Bug"}]"#),
+            ("available_tags", r#""Bug""#),
             ("available_tags", "7"),
             ("default_reaction_emoji", r#""👍""#),
             ("default_reaction_emoji", "[1]"),
@@ -2471,5 +2494,39 @@ mod tests {
             let json = serde_json::to_string(&change).unwrap();
             assert_eq!(format!(r#"{{"key":"{key}"}}"#), json, "{key} {unexpected}");
         }
+    }
+
+    /// A tag or a default reaction with no custom emoji may have its emoji ID
+    /// as `"0"`, and one tag of a shape the type does not expect costs that
+    /// tag only: never the whole side, which would read as every tag added or
+    /// removed.
+    #[test]
+    fn forum_keys_zero_ids_and_odd_tags() {
+        let input = r#"{"key":"available_tags",
+            "old_value":[{"id":"1","name":"A","moderated":false,"emoji_id":null,"emoji_name":null}],
+            "new_value":[{"id":"1","name":"A","moderated":false,"emoji_id":"0","emoji_name":null},
+                         {"id":"2","name":"B","emoji_id":"0","emoji_name":"x"},
+                         {"id":"x","name":"C","moderated":false}]}"#;
+        let change: AuditLogChange = serde_json::from_str(input).unwrap();
+        let AuditLogChange::AvailableTags { new, old } = change else {
+            panic!("not available_tags");
+        };
+        assert_eq!(1, old.unwrap().len());
+        let new = new.unwrap();
+        assert_eq!(2, new.len());
+        assert_eq!(None, new[0].emoji_id);
+        assert_eq!("B", new[1].name);
+        assert!(!new[1].moderated);
+
+        let change: AuditLogChange = serde_json::from_str(
+            r#"{"key":"default_reaction_emoji","old_value":{"emoji_id":"0","emoji_name":"x"},"new_value":{"emoji_name":"y"}}"#,
+        )
+        .unwrap();
+        let AuditLogChange::DefaultReactionEmoji { new, old } = change else {
+            panic!("not default_reaction_emoji");
+        };
+        assert_eq!(None, old.as_ref().unwrap().emoji_id);
+        assert_eq!(Some("x".to_owned()), old.unwrap().emoji_name);
+        assert_eq!(Some("y".to_owned()), new.unwrap().emoji_name);
     }
 }

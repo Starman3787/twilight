@@ -97,6 +97,12 @@ pub mod zeroable_id {
         }
 
         fn visit_str<E: DeError>(self, v: &str) -> Result<Self::Value, E> {
+            // `"0"` is the same "no ID" as `0`, which is what the visitor
+            // says it accepts: forum tags in an audit log entry are sent so.
+            if v == "0" {
+                return Ok(None);
+            }
+
             Id::from_str(v).map(Some).map_err(DeError::custom)
         }
 
