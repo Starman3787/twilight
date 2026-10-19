@@ -12,6 +12,7 @@ pub struct DefaultReaction {
     /// ID of custom guild emoji.
     ///
     /// Conflicts with `emoji_name`.
+    #[serde(default, with = "crate::visitor::zeroable_id")]
     pub emoji_id: Option<Id<EmojiMarker>>,
     /// Unicode emoji character.
     ///
@@ -143,6 +144,8 @@ pub struct ForumTag {
     ///
     /// [`MANAGE_THREADS`]: crate::guild::Permissions::MANAGE_THREADS
     /// [`Member`]: crate::guild::Member
+    /// Absent in some payloads; read as not moderated.
+    #[serde(default)]
     pub moderated: bool,
     /// Name of the tag (0--20 characters).
     pub name: String,

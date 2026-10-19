@@ -2,8 +2,11 @@ use super::change_key::AuditLogChangeKey;
 use crate::{
     application::command::permissions::GuildCommandPermissions,
     channel::{
-        message::sticker::StickerFormatType, permission_overwrite::PermissionOverwrite,
-        stage_instance::PrivacyLevel, thread::AutoArchiveDuration,
+        forum::{DefaultReaction, ForumLayout, ForumSortOrder, ForumTag},
+        message::sticker::StickerFormatType,
+        permission_overwrite::PermissionOverwrite,
+        stage_instance::PrivacyLevel,
+        thread::AutoArchiveDuration,
     },
     guild::{
         DefaultMessageNotificationLevel, ExplicitContentFilter, MfaLevel, NSFWLevel, Permissions,
@@ -62,6 +65,56 @@ pub struct AffectedRole {
     pub id: Id<RoleMarker>,
     /// Name of the role.
     pub name: String,
+}
+
+/// One side of a change that is read if it can be and dropped if it cannot.
+///
+/// Discord adds forum settings and changes their shapes over time, and a
+/// change that fails to deserialise takes the whole [`AuditLogEntry`] with it,
+/// every other change in it included. A side of one of the forum keys that is
+/// not what is expected is therefore read as `None`, as an absent side is.
+///
+/// [`AuditLogEntry`]: super::AuditLogEntry
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum OrIgnored<T> {
+    Value(T),
+    Ignored(IgnoredAny),
+}
+
+/// Deserialise a forum's list of tags leniently, tag by tag: one Discord sends
+/// in a shape [`ForumTag`] does not expect is left out, and the rest kept,
+/// rather than the whole list being dropped. A side that is not a list at all
+/// is read as `None`, as [`lenient`] reads it.
+fn lenient_tags<'de, D>(deserializer: D) -> Result<Option<Vec<ForumTag>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(
+        match Option::<OrIgnored<Vec<OrIgnored<ForumTag>>>>::deserialize(deserializer)? {
+            Some(OrIgnored::Value(tags)) => Some(
+                tags.into_iter()
+                    .filter_map(|tag| match tag {
+                        OrIgnored::Value(tag) => Some(tag),
+                        OrIgnored::Ignored(_) => None,
+                    })
+                    .collect(),
+            ),
+            Some(OrIgnored::Ignored(_)) | None => None,
+        },
+    )
+}
+
+/// Deserialise one side of a forum change leniently: see [`OrIgnored`].
+fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(match Option::<OrIgnored<T>>::deserialize(deserializer)? {
+        Some(OrIgnored::Value(value)) => Some(value),
+        Some(OrIgnored::Ignored(_)) | None => None,
+    })
 }
 
 /// Value of a change which may be one of multiple types.
@@ -443,6 +496,28 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<bool>,
     },
+    /// Tags that can be applied to posts in a forum or media channel.
+    ///
+    /// A side that is not the expected shape is read as `None` rather than
+    /// failing the whole entry.
+    AvailableTags {
+        /// New value.
+        #[serde(
+            default,
+            deserialize_with = "lenient_tags",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<Vec<ForumTag>>,
+        /// Old value.
+        #[serde(
+            default,
+            deserialize_with = "lenient_tags",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<Vec<ForumTag>>,
+    },
     /// Hash of an avatar.
     AvatarHash {
         /// New hash of an avatar.
@@ -533,6 +608,28 @@ pub enum AuditLogChange {
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<AutoArchiveDuration>,
     },
+    /// Default layout of posts in a forum channel.
+    ///
+    /// A side that is not the expected shape is read as `None` rather than
+    /// failing the whole entry.
+    DefaultForumLayout {
+        /// New value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<ForumLayout>,
+        /// Old value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<ForumLayout>,
+    },
     /// Default message notification level for a guild.
     DefaultMessageNotifications {
         /// New default message notification level.
@@ -541,6 +638,72 @@ pub enum AuditLogChange {
         /// Old default message notification level.
         #[serde(rename = "old_value", skip_serializing_if = "Option::is_none")]
         old: Option<DefaultMessageNotificationLevel>,
+    },
+    /// Emoji in the add reaction button of posts in a forum or media channel.
+    ///
+    /// A side that is not the expected shape is read as `None` rather than
+    /// failing the whole entry.
+    DefaultReactionEmoji {
+        /// New value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<DefaultReaction>,
+        /// Old value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<DefaultReaction>,
+    },
+    /// Default sort order of posts in a forum or media channel.
+    ///
+    /// A side that is not the expected shape is read as `None` rather than
+    /// failing the whole entry.
+    DefaultSortOrder {
+        /// New value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<ForumSortOrder>,
+        /// Old value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<ForumSortOrder>,
+    },
+    /// Slowmode new posts in a forum or media channel start with, in seconds.
+    ///
+    /// A side that is not the expected shape is read as `None` rather than
+    /// failing the whole entry.
+    DefaultThreadRateLimitPerUser {
+        /// New value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "new_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        new: Option<u16>,
+        /// Old value.
+        #[serde(
+            default,
+            deserialize_with = "lenient",
+            rename = "old_value",
+            skip_serializing_if = "Option::is_none"
+        )]
+        old: Option<u16>,
     },
     /// Denied permissions of a permission overwrite target.
     Deny {
@@ -1176,6 +1339,7 @@ impl AuditLogChange {
     ///
     /// [`Other`]: Self::Other
     /// [`Uses`]: Self::Uses
+    #[allow(clippy::too_many_lines)]
     pub const fn key(&self) -> Option<AuditLogChangeKey> {
         Some(match self {
             Self::Actions { .. } => AuditLogChangeKey::Actions,
@@ -1188,6 +1352,7 @@ impl AuditLogChange {
             Self::Asset { .. } => AuditLogChangeKey::Asset,
             Self::AutoArchiveDuration { .. } => AuditLogChangeKey::AutoArchiveDuration,
             Self::Available { .. } => AuditLogChangeKey::Available,
+            Self::AvailableTags { .. } => AuditLogChangeKey::AvailableTags,
             Self::AvatarHash { .. } => AuditLogChangeKey::AvatarHash,
             Self::BannerHash { .. } => AuditLogChangeKey::BannerHash,
             Self::Bitrate { .. } => AuditLogChangeKey::Bitrate,
@@ -1202,8 +1367,14 @@ impl AuditLogChange {
             Self::DefaultAutoArchiveDuration { .. } => {
                 AuditLogChangeKey::DefaultAutoArchiveDuration
             }
+            Self::DefaultForumLayout { .. } => AuditLogChangeKey::DefaultForumLayout,
             Self::DefaultMessageNotifications { .. } => {
                 AuditLogChangeKey::DefaultMessageNotifications
+            }
+            Self::DefaultReactionEmoji { .. } => AuditLogChangeKey::DefaultReactionEmoji,
+            Self::DefaultSortOrder { .. } => AuditLogChangeKey::DefaultSortOrder,
+            Self::DefaultThreadRateLimitPerUser { .. } => {
+                AuditLogChangeKey::DefaultThreadRateLimitPerUser
             }
             Self::Deny { .. } => AuditLogChangeKey::Deny,
             Self::Description { .. } => AuditLogChangeKey::Description,
@@ -2156,7 +2327,7 @@ mod tests {
     #[test]
     fn unknown_key_is_other() {
         let value: AuditLogChange = serde_json::from_str(
-            r#"{"key":"available_tags","old_value":[],"new_value":[{"id":"1","name":"tag"}]}"#,
+            r#"{"key":"a_key_discord_adds_later","old_value":[],"new_value":[{"id":"1","name":"tag"}]}"#,
         )
         .unwrap();
 
@@ -2212,5 +2383,150 @@ mod tests {
             ]),
             entry.changes,
         );
+    }
+
+    /// The forum settings a channel update carries (Quark serverlog #173):
+    /// each read whole, and round-tripped as Discord sent it.
+    #[test]
+    fn forum_keys_json() {
+        use crate::channel::forum::{DefaultReaction, ForumLayout, ForumSortOrder, ForumTag};
+
+        let tags = r#"[{"id":"1","name":"Bug","moderated":false,"emoji_id":null,"emoji_name":"🐛"},{"id":"2","name":"Staff","moderated":true,"emoji_id":"3","emoji_name":null}]"#;
+        let input = format!(r#"{{"key":"available_tags","old_value":[],"new_value":{tags}}}"#);
+        let change: AuditLogChange = serde_json::from_str(&input).unwrap();
+        assert_eq!(Some(AuditLogChangeKey::AvailableTags), change.key());
+        let AuditLogChange::AvailableTags { new, old } = change.clone() else {
+            panic!("not available_tags: {change:?}");
+        };
+        assert_eq!(Some(Vec::new()), old);
+        assert_eq!(
+            Some(Vec::from([
+                ForumTag {
+                    emoji_id: None,
+                    emoji_name: Some("🐛".to_owned()),
+                    id: Id::new(1),
+                    moderated: false,
+                    name: "Bug".to_owned(),
+                },
+                ForumTag {
+                    emoji_id: Some(Id::new(3)),
+                    emoji_name: None,
+                    id: Id::new(2),
+                    moderated: true,
+                    name: "Staff".to_owned(),
+                },
+            ])),
+            new
+        );
+        let again: AuditLogChange =
+            serde_json::from_str(&serde_json::to_string(&change).unwrap()).unwrap();
+        assert_eq!(change, again);
+
+        assert_eq!(
+            AuditLogChange::DefaultReactionEmoji {
+                new: Some(DefaultReaction {
+                    emoji_id: None,
+                    emoji_name: Some("👍".to_owned()),
+                }),
+                old: None,
+            },
+            serde_json::from_str(
+                r#"{"key":"default_reaction_emoji","new_value":{"emoji_id":null,"emoji_name":"👍"}}"#
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            AuditLogChange::DefaultSortOrder {
+                new: Some(ForumSortOrder::CreationDate),
+                old: Some(ForumSortOrder::LatestActivity),
+            },
+            serde_json::from_str(r#"{"key":"default_sort_order","old_value":0,"new_value":1}"#)
+                .unwrap(),
+        );
+        assert_eq!(
+            AuditLogChange::DefaultForumLayout {
+                new: Some(ForumLayout::GalleryView),
+                old: Some(ForumLayout::NotSet),
+            },
+            serde_json::from_str(r#"{"key":"default_forum_layout","old_value":0,"new_value":2}"#)
+                .unwrap(),
+        );
+        assert_eq!(
+            AuditLogChange::DefaultThreadRateLimitPerUser {
+                new: Some(30),
+                old: Some(0),
+            },
+            serde_json::from_str(
+                r#"{"key":"default_thread_rate_limit_per_user","old_value":0,"new_value":30}"#
+            )
+            .unwrap(),
+        );
+        assert_eq!(
+            r#"{"key":"default_sort_order","new_value":1,"old_value":0}"#,
+            serde_json::to_string(&AuditLogChange::DefaultSortOrder {
+                new: Some(ForumSortOrder::CreationDate),
+                old: Some(ForumSortOrder::LatestActivity),
+            })
+            .unwrap(),
+        );
+    }
+
+    /// A forum side Discord sends in a shape this does not expect costs that
+    /// side, never the entry: the rest of the channel update is still logged.
+    #[test]
+    fn forum_keys_unexpected_side_is_none() {
+        for (key, unexpected) in [
+            ("available_tags", r#"{"id":"1"}"#),
+            ("available_tags", r#""Bug""#),
+            ("available_tags", "7"),
+            ("default_reaction_emoji", r#""👍""#),
+            ("default_reaction_emoji", "[1]"),
+            ("default_sort_order", r#""latest""#),
+            ("default_sort_order", "-1"),
+            ("default_forum_layout", "{}"),
+            ("default_thread_rate_limit_per_user", "70000"),
+            ("default_thread_rate_limit_per_user", r#""30""#),
+        ] {
+            let input = format!(r#"{{"key":"{key}","old_value":{unexpected},"new_value":null}}"#);
+            let change: AuditLogChange = serde_json::from_str(&input)
+                .unwrap_or_else(|error| panic!("{key} {unexpected}: {error}"));
+            assert_eq!(key, change.key().unwrap().name(), "{unexpected}");
+            let json = serde_json::to_string(&change).unwrap();
+            assert_eq!(format!(r#"{{"key":"{key}"}}"#), json, "{key} {unexpected}");
+        }
+    }
+
+    /// A tag or a default reaction with no custom emoji may have its emoji ID
+    /// as `"0"`, and one tag of a shape the type does not expect costs that
+    /// tag only: never the whole side, which would read as every tag added or
+    /// removed.
+    #[test]
+    fn forum_keys_zero_ids_and_odd_tags() {
+        let input = r#"{"key":"available_tags",
+            "old_value":[{"id":"1","name":"A","moderated":false,"emoji_id":null,"emoji_name":null}],
+            "new_value":[{"id":"1","name":"A","moderated":false,"emoji_id":"0","emoji_name":null},
+                         {"id":"2","name":"B","emoji_id":"0","emoji_name":"x"},
+                         {"id":"x","name":"C","moderated":false}]}"#;
+        let change: AuditLogChange = serde_json::from_str(input).unwrap();
+        let AuditLogChange::AvailableTags { new, old } = change else {
+            panic!("not available_tags");
+        };
+        assert_eq!(1, old.unwrap().len());
+        let new = new.unwrap();
+        assert_eq!(2, new.len());
+        assert_eq!(None, new[0].emoji_id);
+        assert_eq!("B", new[1].name);
+        assert!(!new[1].moderated);
+
+        let change: AuditLogChange = serde_json::from_str(
+            r#"{"key":"default_reaction_emoji","old_value":{"emoji_id":"0","emoji_name":"x"},"new_value":{"emoji_name":"y"}}"#,
+        )
+        .unwrap();
+        let AuditLogChange::DefaultReactionEmoji { new, old } = change else {
+            panic!("not default_reaction_emoji");
+        };
+        assert_eq!(None, old.as_ref().unwrap().emoji_id);
+        assert_eq!(Some("x".to_owned()), old.unwrap().emoji_name);
+        assert_eq!(Some("y".to_owned()), new.unwrap().emoji_name);
     }
 }

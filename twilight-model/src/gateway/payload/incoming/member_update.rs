@@ -1,3 +1,4 @@
+use crate::user::AvatarDecorationData;
 use crate::{
     guild::MemberFlags,
     id::{
@@ -7,7 +8,6 @@ use crate::{
     user::User,
     util::{ImageHash, Timestamp},
 };
-use crate::user::AvatarDecorationData;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
