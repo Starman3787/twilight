@@ -13,6 +13,20 @@ bitflags! {
         const REQUIRE_TAG = 1 << 4;
         /// Hide the download options for this post in a media channel.
         const HIDE_MEDIA_DOWNLOAD_OPTIONS = 1 << 15;
+        /// This channel's metadata has been obfuscated because the current user
+        /// cannot view it.
+        ///
+        /// Only ever set on channels received over the Gateway; the HTTP API
+        /// never sets this flag.
+        const CHANNEL_OBFUSCATED = 1 << 17;
+        /// This channel is a Spoiler Channel.
+        ///
+        /// Users must opt in to view its contents.
+        ///
+        /// Can be set on all textual guild channels and voice channels (but not stage channels). Can only be set if [`Channel::nsfw`] is false.
+        ///
+        /// [`Channel::nsfw`]: super::Channel::nsfw
+        const IS_SPOILER_CHANNEL = 1 << 21;
     }
 }
 
@@ -74,6 +88,9 @@ mod tests {
     );
     const_assert_eq!(ChannelFlags::PINNED.bits(), 1 << 1);
     const_assert_eq!(ChannelFlags::REQUIRE_TAG.bits(), 1 << 4);
+    const_assert_eq!(ChannelFlags::HIDE_MEDIA_DOWNLOAD_OPTIONS.bits(), 1 << 15);
+    const_assert_eq!(ChannelFlags::CHANNEL_OBFUSCATED.bits(), 1 << 17);
+    const_assert_eq!(ChannelFlags::IS_SPOILER_CHANNEL.bits(), 1 << 21);
 
     #[test]
     fn serde() {
@@ -83,5 +100,20 @@ mod tests {
         );
         // Deserialization truncates unknown bits.
         serde_test::assert_de_tokens(&ChannelFlags::empty(), &[Token::U64(1 << 63)]);
+    }
+
+    /// The gateway re-serialises every channel it forwards, so a flag that is
+    /// not named here is dropped on the way through: an obfuscated channel
+    /// used to arrive downstream looking like an ordinary one.
+    #[test]
+    fn obfuscated_survives_a_round_trip() {
+        serde_test::assert_tokens(
+            &ChannelFlags::CHANNEL_OBFUSCATED,
+            &[Token::U64(1 << 17)],
+        );
+        serde_test::assert_tokens(
+            &(ChannelFlags::CHANNEL_OBFUSCATED | ChannelFlags::PINNED),
+            &[Token::U64((1 << 17) | (1 << 1))],
+        );
     }
 }
